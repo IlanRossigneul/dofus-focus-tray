@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Id": "dofus-focus-tray",
+        "Name": "Dofus Focus Tray",
+        "Description": "KWin integration for Dofus Focus Tray",
+        "Version": "1.0",
+        "License": "GPL"
+    },
+    "X-Plasma-API": "declarativescript",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "KPackageStructure": "KWin/Script"
+}
