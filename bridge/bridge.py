@@ -220,7 +220,7 @@ class DofusFocusBridge(ServiceInterface):
             if len(calibrated_windows) == self.state.total_windows:
                 self.state.calibrating = False
                 self.state.calibrated = True
-                self.state.current_index = -1
+                self.state.current_index = len(calibrated_windows) - 1
 
                 print("[DOFUS FOCUS BRIDGE] Calibration completed")
 
@@ -246,8 +246,7 @@ class DofusFocusBridge(ServiceInterface):
 
                 return
 
-    @method()
-    async def activate_window(self, internal_id: "s") -> None:
+    async def _activate_window(self, internal_id: str) -> None:
         js_code = f"""
         var windows = workspace.windowList();
 
@@ -312,6 +311,48 @@ class DofusFocusBridge(ServiceInterface):
 
             if kwin_bus:
                 kwin_bus.disconnect()
+
+    @method()
+    async def activate_window(self, internal_id: "s") -> None:
+        await self._activate_window(internal_id)
+
+    @method()
+    def dofus_focus(self, direction: "i") -> None:
+        if not self.state.calibrated:
+            return
+
+        calibrated_windows = self.state.calibrated_windows
+
+        if not calibrated_windows:
+            return
+
+        if direction not in (-1, 1):
+            return
+
+        current_index = self.state.current_index
+
+        if current_index < 0 or current_index >= len(calibrated_windows):
+            return
+
+        target_index = (
+            current_index + direction
+        ) % len(calibrated_windows)
+
+        target_window = calibrated_windows[target_index]
+
+        self.state.current_index = target_index
+
+        print(
+            "[DOFUS FOCUS BRIDGE] Focusing Dofus window:",
+            target_window.uuid,
+            "index:",
+            target_index,
+        )
+
+        # Schedule the activation asynchronously.
+        asyncio.create_task(
+            self._activate_window(target_window.uuid)
+        )
 
     @signal()
     def windows_updated(self, windows: "as") -> "as":
