@@ -26,11 +26,12 @@ class DofusFocusBridge(ServiceInterface):
         self._windows = []
         self._kwin = KWinController()
         self._calibration = CalibrationController(self.state)
+        self._active_window_id = None
 
     @method()
     def start_calibration(self) -> None:
         self._calibration.set_windows(self._windows)
-        self._calibration.start()
+        self._calibration.start(self._active_window_id)
 
     @method()
     def update_windows(self, windows_json: "s") -> None:
@@ -134,6 +135,8 @@ class DofusFocusBridge(ServiceInterface):
     def update_active_window(self, internal_id: "s") -> None:
         if not internal_id:
             return
+
+        self._active_window_id = internal_id
 
         calibrated_windows = self.state.calibrated_windows
 
