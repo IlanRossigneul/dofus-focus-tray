@@ -253,7 +253,7 @@ def test_update_windows_ignores_updates_without_removed_windows():
         '["window-1", "window-2", "window-3"]'
     )
 
-    assert bridge._windows == [
+    assert bridge._windows_controller.windows == [
         "window-1",
         "window-2",
         "window-3",
@@ -374,6 +374,6 @@ def test_update_windows_handles_invalid_json():
 
     bridge.update_windows("not-json")
 
-    assert bridge._windows == []
+    assert bridge._windows_controller.windows == []
     assert bridge.state.calibrated is False
     assert bridge.state.calibrating is False
