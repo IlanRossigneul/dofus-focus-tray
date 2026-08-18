@@ -2,13 +2,10 @@
 
 import asyncio
 import json
-import os
-import tempfile
 
-from dbus_next import BusType
-from dbus_next.aio import MessageBus
 from dbus_next.service import ServiceInterface, method, signal
 
+from bridge.kwin import KWinController
 from bridge.models import DofusFocusState, DofusWindow
 
 BUS_NAME = "org.ilan.DofusFocusBridge"
@@ -24,6 +21,7 @@ class DofusFocusBridge(ServiceInterface):
     def __init__(self):
         super().__init__(INTERFACE_NAME)
 
+        self._kwin = KWinController()
         self.state = DofusFocusState()
         self._windows = []
 
@@ -246,75 +244,9 @@ class DofusFocusBridge(ServiceInterface):
 
                 return
 
-    async def _activate_window(self, internal_id: str) -> None:
-        js_code = f"""
-        var windows = workspace.windowList();
-
-        for (var i = 0; i < windows.length; i++) {{
-            if (String(windows[i].internalId) === "{internal_id}") {{
-                console.log(
-                    "[KWIN SCRIPT] Activating Dofus window:",
-                    "{internal_id}"
-                );
-
-                workspace.activeWindow = windows[i];
-                break;
-            }}
-        }}
-        """
-
-        temp_path = None
-        kwin_bus = None
-
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".js",
-                delete=False,
-            ) as temp_file:
-                temp_file.write(js_code)
-                temp_path = temp_file.name
-
-            kwin_bus = await MessageBus(bus_type=BusType.SESSION).connect()
-
-            scripting_introspection = await kwin_bus.introspect(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-            )
-
-            scripting_object = kwin_bus.get_proxy_object(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-                scripting_introspection,
-            )
-
-            scripting = scripting_object.get_interface(KWIN_SCRIPTING_INTERFACE)
-
-            script_id = await scripting.call_load_script(temp_path)
-
-            await scripting.call_start()
-
-            await asyncio.sleep(0.5)
-
-            await scripting.call_unload_script(str(script_id))
-
-        except Exception as error:
-            print(
-                "[DOFUS FOCUS BRIDGE] Failed to activate "
-                "Dofus window:",
-                error,
-            )
-
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
-
-            if kwin_bus:
-                kwin_bus.disconnect()
-
     @method()
     async def activate_window(self, internal_id: "s") -> None:
-        await self._activate_window(internal_id)
+        await self._kwin.activate_window(internal_id)
 
     @method()
     def dofus_focus(self, direction: "i") -> None:
@@ -350,9 +282,7 @@ class DofusFocusBridge(ServiceInterface):
         )
 
         # Schedule the activation asynchronously.
-        asyncio.create_task(
-            self._activate_window(target_window.uuid)
-        )
+        asyncio.create_task(self._kwin.activate_window(target_window.uuid))
 
     @signal()
     def windows_updated(self, windows: "as") -> "as":
