@@ -5,8 +5,9 @@ import json
 
 from dbus_next.service import ServiceInterface, method, signal
 
+from bridge.calibration import CalibrationController
 from bridge.kwin import KWinController
-from bridge.models import DofusFocusState, DofusWindow
+from bridge.models import DofusFocusState
 
 BUS_NAME = "org.ilan.DofusFocusBridge"
 OBJECT_PATH = "/org/ilan/DofusFocusBridge"
@@ -21,66 +22,15 @@ class DofusFocusBridge(ServiceInterface):
     def __init__(self):
         super().__init__(INTERFACE_NAME)
 
-        self._kwin = KWinController()
         self.state = DofusFocusState()
         self._windows = []
-
-    def create_original_windows(self, windows: list[str]) -> None:
-        self.state.original_windows = [
-            DofusWindow(
-                name=f"Compte {index + 1}",
-                uuid=internal_id,
-                position=index,
-            )
-            for index, internal_id in enumerate(windows)
-        ]
-
-        self.state.total_windows = len(
-            self.state.original_windows
-        )
-
-    def _start_calibration(self) -> None:
-        self.state.calibrated = False
-        self.state.calibrating = False
-
-        self.state.original_windows = []
-        self.state.calibrated_windows = []
-
-        self.state.current_index = -1
-        self.state.total_windows = 0
-
-        if not self._windows:
-            print(
-                "[DOFUS FOCUS BRIDGE] Calibration cancelled: no Dofus windows found"
-            )
-            return
-
-        self.state.calibrating = True
-
-        self.create_original_windows(self._windows)
-
-        print(
-            "[DOFUS FOCUS BRIDGE] Calibration started:",
-            self.state.total_windows,
-            "Dofus windows",
-        )
-
-        for window in self.state.original_windows:
-            print("[DOFUS FOCUS BRIDGE]", window)
-
-    def _reset_state(self) -> None:
-        self.state.calibrated = False
-        self.state.calibrating = False
-
-        self.state.original_windows = []
-        self.state.calibrated_windows = []
-
-        self.state.current_index = -1
-        self.state.total_windows = 0
+        self._kwin = KWinController()
+        self._calibration = CalibrationController(self.state)
 
     @method()
     def start_calibration(self) -> None:
-        self._start_calibration()
+        self._calibration.set_windows(self._windows)
+        self._calibration.start()
 
     @method()
     def update_windows(self, windows_json: "s") -> None:
@@ -91,31 +41,6 @@ class DofusFocusBridge(ServiceInterface):
             self._windows = windows
 
             print("[DOFUS FOCUS BRIDGE] Live windows count:", len(windows))
-
-            # --------------------------------------------------------
-            # CALIBRATION IN PROGRESS
-            # --------------------------------------------------------
-
-            if self.state.calibrating:
-                for window in self.state.original_windows:
-                    if window.uuid not in self._windows:
-                        self._reset_state()
-
-                        print(
-                            "[DOFUS FOCUS BRIDGE] Calibration cancelled: "
-                            "a Dofus window was closed"
-                        )
-
-                        return
-
-                return
-
-            # --------------------------------------------------------
-            # CALIBRATION COMPLETED
-            # --------------------------------------------------------
-
-            if not self.state.calibrated:
-                return
 
             # Find the window that disappeared since the previous update.
             missing_uuid = None
@@ -132,6 +57,26 @@ class DofusFocusBridge(ServiceInterface):
                 "[DOFUS FOCUS BRIDGE] Window vanished from desktop:",
                 missing_uuid,
             )
+
+            # --------------------------------------------------------
+            # CALIBRATION IN PROGRESS
+            # --------------------------------------------------------
+
+            if self.state.calibrating:
+                if self._calibration.handle_window_removal(missing_uuid):
+                    print(
+                        "[DOFUS FOCUS BRIDGE] Calibration cancelled: "
+                        "a Dofus window was closed"
+                    )
+
+                return
+
+            # --------------------------------------------------------
+            # CALIBRATION COMPLETED
+            # --------------------------------------------------------
+
+            if not self.state.calibrated:
+                return
 
             # Remove the vanished window from the calibrated list.
             removed_index = -1
@@ -152,7 +97,14 @@ class DofusFocusBridge(ServiceInterface):
                     "[DOFUS FOCUS BRIDGE] All calibrated Dofus windows were closed"
                 )
 
-                self._reset_state()
+                self.state.calibrated = False
+                self.state.calibrating = False
+
+                self.state.original_windows = []
+                self.state.calibrated_windows = []
+
+                self.state.current_index = -1
+                self.state.total_windows = 0
                 return
 
             # Keep current_index pointing to the same focused window
@@ -163,14 +115,17 @@ class DofusFocusBridge(ServiceInterface):
             # If the current index is now outside the list, clamp it
             # to the last remaining window.
             elif self.state.current_index >= len(self.state.calibrated_windows):
-                self.state.current_index = (len(self.state.calibrated_windows) - 1)
+                self.state.current_index = len(self.state.calibrated_windows) - 1
 
             print(
                 "[DOFUS FOCUS BRIDGE] Calibrated windows after removal:",
                 self.state.calibrated_windows,
             )
 
-            print("[DOFUS FOCUS BRIDGE] Current index:", self.state.current_index)
+            print(
+                "[DOFUS FOCUS BRIDGE] Current index:",
+                self.state.current_index,
+            )
 
         except Exception as error:
             print("[DOFUS FOCUS BRIDGE] Error decoding JSON:", error)
@@ -187,41 +142,7 @@ class DofusFocusBridge(ServiceInterface):
         # --------------------------------------------------------
 
         if self.state.calibrating:
-            for window in calibrated_windows:
-                if window.uuid == internal_id:
-                    return
-
-            original_window = None
-
-            for window in self.state.original_windows:
-                if window.uuid == internal_id:
-                    original_window = window
-                    break
-
-            if original_window is None:
-                return
-
-            calibrated_window = DofusWindow(
-                name=original_window.name,
-                uuid=original_window.uuid,
-                position=original_window.position,
-                calibrated_order=len(calibrated_windows),
-            )
-
-            calibrated_windows.append(calibrated_window)
-
-            print(
-                "[DOFUS FOCUS BRIDGE] Calibration selection:",
-                calibrated_window,
-            )
-
-            if len(calibrated_windows) == self.state.total_windows:
-                self.state.calibrating = False
-                self.state.calibrated = True
-                self.state.current_index = len(calibrated_windows) - 1
-
-                print("[DOFUS FOCUS BRIDGE] Calibration completed")
-
+            self._calibration.select_window(internal_id)
             return
 
         # --------------------------------------------------------
