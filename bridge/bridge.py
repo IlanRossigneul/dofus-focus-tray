@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import asyncio
 import json
 
@@ -14,10 +12,6 @@ from bridge.windows import WindowsController
 BUS_NAME = "org.ilan.DofusFocusBridge"
 OBJECT_PATH = "/org/ilan/DofusFocusBridge"
 INTERFACE_NAME = "org.ilan.DofusFocusBridge"
-
-KWIN_BUS_NAME = "org.kde.KWin"
-KWIN_SCRIPTING_PATH = "/Scripting"
-KWIN_SCRIPTING_INTERFACE = "org.kde.kwin.Scripting"
 
 
 class DofusFocusBridge(ServiceInterface):
@@ -130,21 +124,3 @@ class DofusFocusBridge(ServiceInterface):
     @signal()
     def windows_updated(self, windows: "as") -> "as":
         return windows
-
-
-async def main():
-    bus = await MessageBus().connect()
-
-    bridge = DofusFocusBridge()
-
-    bus.export(OBJECT_PATH, bridge)
-
-    await bus.request_name(BUS_NAME)
-
-    print("[DOFUS FOCUS BRIDGE] Started")
-
-    await asyncio.get_running_loop().create_future()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
