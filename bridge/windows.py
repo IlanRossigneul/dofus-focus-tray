@@ -24,6 +24,8 @@ class WindowsController:
         old_windows = list(self._windows)
         self._windows = list(windows)
 
+        self._calibration.set_windows(self._windows)
+
         missing_uuid = next(
             (
                 uuid
@@ -41,13 +43,13 @@ class WindowsController:
             missing_uuid,
         )
 
-        if self.state.calibrating:
-            if self._calibration.handle_window_removal(missing_uuid):
-                print(
-                    "[DOFUS FOCUS BRIDGE] Calibration cancelled: "
-                    "a Dofus window was closed"
-                )
+        if not self._windows:
+            print(
+                "[DOFUS FOCUS BRIDGE] "
+                "All Dofus windows were closed"
+            )
 
+            self._reset_state()
             return missing_uuid
 
         if not self.state.calibrated:
@@ -103,7 +105,6 @@ class WindowsController:
         self.state.calibrated = False
         self.state.calibrating = False
 
-        self.state.original_windows = []
         self.state.calibrated_windows = []
 
         self.state.current_index = -1
