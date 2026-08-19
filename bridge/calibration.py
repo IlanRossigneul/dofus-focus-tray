@@ -10,7 +10,36 @@ class CalibrationController:
 
     def set_windows(self, windows: list[str]) -> None:
         """Update the currently detected Dofus windows."""
-        self._windows = list(windows)
+        new_windows = list(windows)
+
+        if not self.state.calibrating:
+            self._windows = new_windows
+            return
+
+        removed_windows = set(self._windows) - set(new_windows)
+
+        if any(
+            window.uuid in removed_windows
+            for window in self.state.calibrated_windows
+        ):
+            self._windows = new_windows
+            self._reset()
+            return
+
+        self._windows = new_windows
+        self.state.total_windows = len(new_windows)
+
+        calibrated_ids = {
+            window.uuid
+            for window in self.state.calibrated_windows
+        }
+
+        if new_windows and calibrated_ids == set(new_windows):
+            self.state.calibrating = False
+            self.state.calibrated = True
+            self.state.current_index = (
+                len(self.state.calibrated_windows) - 1
+            )
 
     def start(self, active_window_id: str | None = None) -> None:
         """Start a new calibration."""
@@ -21,21 +50,17 @@ class CalibrationController:
         if window_count == 0:
             return
 
-        self.state.original_windows = [
-            DofusWindow(
-                name=f"Compte {index + 1}",
-                uuid=internal_id,
-                position=index,
-            )
-            for index, internal_id in enumerate(self._windows)
-        ]
-
         self.state.total_windows = window_count
 
         # A single Dofus window does not require ordering.
         if window_count == 1:
             self.state.calibrated_windows = [
-                self.state.original_windows[0]
+                DofusWindow(
+                    name="Compte 1",
+                    uuid=self._windows[0],
+                    position=0,
+                    calibrated_order=0,
+                )
             ]
             self.state.current_index = 0
             self.state.calibrated = True
@@ -57,22 +82,10 @@ class CalibrationController:
         ):
             return False
 
-        original_window = next(
-            (
-                window
-                for window in self.state.original_windows
-                if window.uuid == internal_id
-            ),
-            None,
-        )
-
-        if original_window is None:
-            return False
-
         calibrated_window = DofusWindow(
-            name=original_window.name,
-            uuid=original_window.uuid,
-            position=original_window.position,
+            name=f"Compte {len(self.state.calibrated_windows) + 1}",
+            uuid=internal_id,
+            position=len(self.state.calibrated_windows),
             calibrated_order=len(self.state.calibrated_windows),
         )
 
@@ -81,29 +94,16 @@ class CalibrationController:
         if len(self.state.calibrated_windows) == self.state.total_windows:
             self.state.calibrating = False
             self.state.calibrated = True
-            self.state.current_index = len(self.state.calibrated_windows) - 1
+            self.state.current_index = len(
+                self.state.calibrated_windows
+            ) - 1
 
-        return True
-
-    def handle_window_removal(self, internal_id: str) -> bool:
-        """Cancel calibration if a calibrated source window disappears."""
-        if not self.state.calibrating:
-            return False
-
-        if not any(
-            window.uuid == internal_id
-            for window in self.state.original_windows
-        ):
-            return False
-
-        self._reset()
         return True
 
     def _reset(self) -> None:
         self.state.calibrated = False
         self.state.calibrating = False
 
-        self.state.original_windows = []
         self.state.calibrated_windows = []
 
         self.state.current_index = -1
