@@ -1,9 +1,9 @@
-import asyncio
 import json
 
 from dbus_next.service import ServiceInterface, method, signal
 
 from bridge.calibration import CalibrationController
+from bridge.focus import FocusController
 from bridge.kwin import KWinController
 from bridge.models import DofusFocusState
 from bridge.windows import WindowsController
@@ -25,6 +25,10 @@ class DofusFocusBridge(ServiceInterface):
         self._windows_controller = WindowsController(
             self.state,
             self._calibration,
+        )
+        self._focus = FocusController(
+            self.state,
+            self._kwin,
         )
 
     @method()
@@ -51,35 +55,11 @@ class DofusFocusBridge(ServiceInterface):
 
         self._active_window_id = internal_id
 
-        calibrated_windows = self.state.calibrated_windows
-
-        # --------------------------------------------------------
-        # CALIBRATION
-        # --------------------------------------------------------
-
         if self.state.calibrating:
             self._calibration.select_window(internal_id)
             return
 
-        # --------------------------------------------------------
-        # NORMAL OPERATION
-        # --------------------------------------------------------
-
-        if not self.state.calibrated:
-            return
-
-        for index, window in enumerate(calibrated_windows):
-            if window.uuid == internal_id:
-                self.state.current_index = index
-
-                print(
-                    "[DOFUS FOCUS BRIDGE] Active Dofus window:",
-                    internal_id,
-                    "index:",
-                    self.state.current_index,
-                )
-
-                return
+        self._focus.update_active_window(internal_id)
 
     @method()
     async def activate_window(self, internal_id: "s") -> None:
@@ -87,39 +67,7 @@ class DofusFocusBridge(ServiceInterface):
 
     @method()
     def dofus_focus(self, direction: "i") -> None:
-        if not self.state.calibrated:
-            return
-
-        calibrated_windows = self.state.calibrated_windows
-
-        if not calibrated_windows:
-            return
-
-        if direction not in (-1, 1):
-            return
-
-        current_index = self.state.current_index
-
-        if current_index < 0 or current_index >= len(calibrated_windows):
-            return
-
-        target_index = (
-            current_index + direction
-        ) % len(calibrated_windows)
-
-        target_window = calibrated_windows[target_index]
-
-        self.state.current_index = target_index
-
-        print(
-            "[DOFUS FOCUS BRIDGE] Focusing Dofus window:",
-            target_window.uuid,
-            "index:",
-            target_index,
-        )
-
-        # Schedule the activation asynchronously.
-        asyncio.create_task(self._kwin.activate_window(target_window.uuid))
+        self._focus.focus(direction)
 
     @signal()
     def windows_updated(self, windows: "as") -> "as":
