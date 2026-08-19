@@ -273,7 +273,6 @@ def test_update_windows_cancels_calibration_when_window_disappears():
 
     assert bridge.state.calibrated is False
     assert bridge.state.calibrating is False
-    assert bridge.state.original_windows == []
     assert bridge.state.calibrated_windows == []
     assert bridge.state.current_index == -1
     assert bridge.state.total_windows == 0
@@ -363,7 +362,6 @@ def test_update_windows_resets_state_when_all_calibrated_windows_are_removed():
 
     assert bridge.state.calibrated is False
     assert bridge.state.calibrating is False
-    assert bridge.state.original_windows == []
     assert bridge.state.calibrated_windows == []
     assert bridge.state.current_index == -1
     assert bridge.state.total_windows == 0

@@ -49,7 +49,7 @@ class WindowsController:
                 "All Dofus windows were closed"
             )
 
-            self._reset_state()
+            self._calibration.reset()
             return missing_uuid
 
         if not self.state.calibrated:
@@ -76,7 +76,7 @@ class WindowsController:
                 "All calibrated Dofus windows were closed"
             )
 
-            self._reset_state()
+            self._calibration.reset()
             return missing_uuid
 
         if self.state.current_index > removed_index:
@@ -100,12 +100,3 @@ class WindowsController:
         )
 
         return missing_uuid
-
-    def _reset_state(self) -> None:
-        self.state.calibrated = False
-        self.state.calibrating = False
-
-        self.state.calibrated_windows = []
-
-        self.state.current_index = -1
-        self.state.total_windows = 0

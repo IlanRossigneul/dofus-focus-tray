@@ -23,7 +23,7 @@ class CalibrationController:
             for window in self.state.calibrated_windows
         ):
             self._windows = new_windows
-            self._reset()
+            self.reset()
             return
 
         self._windows = new_windows
@@ -43,7 +43,7 @@ class CalibrationController:
 
     def start(self, active_window_id: str | None = None) -> None:
         """Start a new calibration."""
-        self._reset()
+        self.reset()
 
         window_count = len(self._windows)
 
@@ -100,7 +100,7 @@ class CalibrationController:
 
         return True
 
-    def _reset(self) -> None:
+    def reset(self) -> None:
         self.state.calibrated = False
         self.state.calibrating = False
 

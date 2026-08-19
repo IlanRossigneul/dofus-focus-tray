@@ -18,11 +18,6 @@ class DofusFocusState:
     # Window event monitoring
     monitoring: bool = True
 
-    # Windows captured when calibration starts
-    original_windows: list[DofusWindow] = field(
-        default_factory=list
-    )
-
     # Windows registered by the calibration
     calibrated_windows: list[DofusWindow] = field(
         default_factory=list
@@ -31,5 +26,5 @@ class DofusFocusState:
     # Currently focused calibrated Dofus window
     current_index: int = -1
 
-    # Number of Dofus windows captured at calibration start
+    # Number of Dofus windows expected during calibration
     total_windows: int = 0
