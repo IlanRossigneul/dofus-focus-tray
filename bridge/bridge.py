@@ -33,7 +33,6 @@ class DofusFocusBridge(ServiceInterface):
 
     @method()
     def start_calibration(self) -> None:
-        self._calibration.set_windows(self._windows_controller.windows)
         self._calibration.start(self._active_window_id)
 
     @method()
