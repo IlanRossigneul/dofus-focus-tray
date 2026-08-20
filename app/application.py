@@ -65,6 +65,12 @@ class Application:
             window_count,
         )
 
+        self.indicator.setStatus(
+            KStatusNotifierItem.ItemStatus.Active
+            if window_count > 0
+            else KStatusNotifierItem.ItemStatus.Passive
+        )
+
     def _request_calibration(self) -> None:
         if (
             self.bridge is None

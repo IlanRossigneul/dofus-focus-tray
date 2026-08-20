@@ -15,6 +15,6 @@ def create_indicator(icon_dir: Path) -> KStatusNotifierItem:
     indicator.setToolTipTitle("Dofus Focus")
     indicator.setIsMenu(True)
     indicator.setStandardActionsEnabled(True)
-    indicator.setStatus(KStatusNotifierItem.ItemStatus.Active)
+    indicator.setStatus(KStatusNotifierItem.ItemStatus.Passive)
 
     return indicator
