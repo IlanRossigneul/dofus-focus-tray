@@ -17,6 +17,33 @@ def test_update_active_window_stores_active_window_id():
     assert bridge._active_window_id == "window-2"
 
 
+def test_update_active_window_clears_active_window_id_when_no_dofus_window_is_active():
+    bridge = create_bridge()
+    bridge.update_active_window("window-2")
+
+    bridge.update_active_window("")
+
+    assert bridge._active_window_id is None
+
+
+def test_update_active_window_keeps_current_index_when_active_window_is_not_dofus():
+    bridge = create_bridge()
+    bridge.update_windows(
+        '["window-1", "window-2", "window-3"]'
+    )
+    bridge.start_calibration()
+
+    bridge._calibration.select_window("window-1")
+    bridge._calibration.select_window("window-2")
+    bridge._calibration.select_window("window-3")
+
+    bridge.state.current_index = 1
+
+    bridge.update_active_window("")
+
+    assert bridge.state.current_index == 1
+
+
 def test_update_active_window_selects_window_during_calibration():
     bridge = create_bridge()
     bridge._calibration.set_windows(

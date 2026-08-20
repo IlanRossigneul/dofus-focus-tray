@@ -82,10 +82,12 @@ class CalibrationController:
         ):
             return False
 
+        position = self._windows.index(internal_id)
+
         calibrated_window = DofusWindow(
-            name=f"Compte {len(self.state.calibrated_windows) + 1}",
+            name=f"Compte {position + 1}",
             uuid=internal_id,
-            position=len(self.state.calibrated_windows),
+            position=position,
             calibrated_order=len(self.state.calibrated_windows),
         )
 

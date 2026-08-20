@@ -68,6 +68,11 @@ def test_select_window_adds_window_in_order():
         for window in controller.state.calibrated_windows
     ] == [0, 1]
 
+    assert [
+        window.position
+        for window in controller.state.calibrated_windows
+    ] == [1, 2]
+
     assert controller.state.calibrating is True
     assert controller.state.calibrated is False
 
@@ -172,6 +177,11 @@ def test_set_windows_with_added_window_during_calibration():
     assert controller.state.calibrating is False
 
     assert [
+        window.position
+        for window in controller.state.calibrated_windows
+    ] == [0, 2, 1]
+
+    assert [
         window.uuid
         for window in controller.state.calibrated_windows
     ] == ["window-1", "window-3", "window-2"]
@@ -253,6 +263,7 @@ def test_start_with_active_dofus_window_selects_it_first():
     ] == ["window-2"]
 
     assert controller.state.calibrated_windows[0].calibrated_order == 0
+    assert controller.state.calibrated_windows[0].position == 1
 
 
 def test_start_with_unknown_active_window_waits_for_selection():
@@ -347,3 +358,21 @@ def test_set_windows_with_no_windows_cancels_calibration():
     assert controller.state.calibrated_windows == []
     assert controller.state.current_index == -1
     assert controller.state.total_windows == 0
+
+
+def test_start_with_single_window():
+    controller = create_controller(["window-1"])
+
+    controller.start()
+
+    assert controller.state.calibrated is True
+    assert controller.state.calibrating is False
+    assert controller.state.total_windows == 1
+    assert controller.state.current_index == 0
+    assert len(controller.state.calibrated_windows) == 1
+
+    window = controller.state.calibrated_windows[0]
+
+    assert window.uuid == "window-1"
+    assert window.position == 0
+    assert window.calibrated_order == 0

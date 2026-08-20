@@ -66,12 +66,19 @@ def test_update_active_window_ignores_unknown_window():
     assert focus._state.current_index == 1
 
 
-def test_update_active_window_ignores_empty_id():
+def test_update_active_window_keeps_current_index_for_empty_id():
     focus = create_focus()
+    set_calibrated_windows(
+        focus,
+        "window-1",
+        "window-2",
+        "window-3",
+    )
+    focus._state.current_index = 1
 
     focus.update_active_window("")
 
-    assert focus._state.current_index == -1
+    assert focus._state.current_index == 1
 
 
 def test_focus_ignores_when_not_calibrated():

@@ -9,6 +9,8 @@ from PySide6.QtWidgets import QMenu
 class MenuWidgets:
     menu: QMenu
 
+    name_item: QAction
+
     windows_item: QAction
     order_item: QAction
     active_window_item: QAction
@@ -38,8 +40,14 @@ def add_separator(menu: QMenu) -> None:
 def create_menu(menu_icon_dir: Path) -> MenuWidgets:
     menu = QMenu()
 
+    name_item = create_menu_item(
+        text="Dofus Focus",
+    )
+
+    name_item.setEnabled(False)
+
     windows_item = create_menu_item(
-        text="Fenêtres : —",
+        text="Fenêtre : —",
     )
 
     order_item = create_menu_item(
@@ -47,7 +55,7 @@ def create_menu(menu_icon_dir: Path) -> MenuWidgets:
     )
 
     active_window_item = create_menu_item(
-        text="Fenêtre active : —",
+        text="Dernière fenêtre active : —",
     )
 
     calibration_item = create_menu_item(
@@ -57,6 +65,10 @@ def create_menu(menu_icon_dir: Path) -> MenuWidgets:
     shortcuts_item = create_menu_item(
         text="Configurer les raccourcis",
     )
+
+    menu.addAction(name_item)
+
+    add_separator(menu)
 
     menu.addAction(windows_item)
     menu.addAction(order_item)
@@ -72,6 +84,7 @@ def create_menu(menu_icon_dir: Path) -> MenuWidgets:
 
     return MenuWidgets(
         menu=menu,
+        name_item=name_item,
         windows_item=windows_item,
         order_item=order_item,
         active_window_item=active_window_item,

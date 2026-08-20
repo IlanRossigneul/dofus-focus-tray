@@ -18,13 +18,32 @@ class StatusView:
         self.order_item = order_item
         self.active_window_item = active_window_item
 
+    def _format_window_order(
+        self,
+        state: DofusFocusState,
+    ) -> str:
+        windows = [
+            window.name
+            for window in state.calibrated_windows
+        ]
+
+        if len(windows) <= 1:
+            return "".join(windows)
+
+        if len(windows) == 2:
+            return " et ".join(windows)
+
+        return ", ".join(windows[:-1]) + " et " + windows[-1]
+
     def update(
         self,
         state: DofusFocusState,
         window_count: int,
     ) -> None:
+        window_label = "Fenêtre" if window_count in (0, 1) else "Fenêtres"
+
         self.windows_item.setText(
-            f"Fenêtres : {window_count}"
+            f"{window_label} : {window_count}"
         )
 
         if not state.calibrated:
@@ -35,13 +54,8 @@ class StatusView:
         self.order_item.setVisible(True)
         self.active_window_item.setVisible(True)
 
-        order = ", ".join(
-            window.name
-            for window in state.calibrated_windows
-        )
-
         self.order_item.setText(
-            f"Ordre : {order}"
+            f"Ordre : {self._format_window_order(state)}"
         )
 
         if 0 <= state.current_index < len(
@@ -52,9 +66,9 @@ class StatusView:
             ]
 
             self.active_window_item.setText(
-                f"Fenêtre active : {active_window.name}"
+                f"Dernière fenêtre active : {active_window.name}"
             )
         else:
             self.active_window_item.setText(
-                "Fenêtre active : —"
+                "Dernière fenêtre active : —"
             )
