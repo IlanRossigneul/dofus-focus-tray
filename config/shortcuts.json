@@ -1,0 +1,36 @@
+{
+    "calibration": {
+        "primary": {
+            "trigger": "F1",
+            "modifiers": [
+                "CTRL"
+            ]
+        },
+        "alternate": null
+    },
+    "next": {
+        "primary": {
+            "trigger": "N",
+            "modifiers": [
+                "META"
+            ]
+        },
+        "alternate": {
+            "trigger": "BTN_EXTRA",
+            "modifiers": []
+        }
+    },
+    "previous": {
+        "primary": {
+            "trigger": "N",
+            "modifiers": [
+                "META",
+                "SHIFT"
+            ]
+        },
+        "alternate": {
+            "trigger": "BTN_SIDE",
+            "modifiers": []
+        }
+    }
+}

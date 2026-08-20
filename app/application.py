@@ -14,6 +14,7 @@ from bridge.bridge import (
 from bridge.models import DofusFocusState
 from config.paths import ICON_DIR
 from ui.menu import MenuWidgets, create_menu
+from ui.shortcuts_window import ShortcutsWindow
 from ui.status_view import StatusView
 from ui.tray_view import create_indicator
 
@@ -27,6 +28,7 @@ class Application:
         self.indicator: KStatusNotifierItem | None = None
         self.status_view: StatusView | None = None
         self.menu_widgets: MenuWidgets | None = None
+        self.shortcuts_window: ShortcutsWindow | None = None
 
         self.bridge: DofusFocusBridge | None = None
         self.bus: MessageBus | None = None
@@ -73,6 +75,16 @@ class Application:
         self.dbus_loop.call_soon_threadsafe(
             self.bridge.start_calibration,
         )
+
+    def _open_shortcuts_window(self) -> None:
+        if self.shortcuts_window is None:
+            self.shortcuts_window = ShortcutsWindow()
+        else:
+            self.shortcuts_window.reload()
+
+        self.shortcuts_window.show()
+        self.shortcuts_window.raise_()
+        self.shortcuts_window.activateWindow()
 
     def _stop_dbus(self) -> None:
         if (
@@ -172,6 +184,10 @@ class Application:
 
         self.menu_widgets.calibration_item.triggered.connect(
             self._request_calibration,
+        )
+
+        self.menu_widgets.shortcuts_item.triggered.connect(
+            self._open_shortcuts_window,
         )
 
         self.indicator.setContextMenu(

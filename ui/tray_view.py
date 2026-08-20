@@ -8,7 +8,7 @@ def create_indicator(icon_dir: Path) -> KStatusNotifierItem:
     indicator = KStatusNotifierItem()
 
     indicator.setIconByPixmap(
-        QPixmap(str(icon_dir / "dofus.svg"))
+        QPixmap(str(icon_dir / "dofus.webp"))
     )
 
     indicator.setTitle("Dofus Focus")

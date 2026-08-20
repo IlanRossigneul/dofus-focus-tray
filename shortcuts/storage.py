@@ -71,6 +71,7 @@ class ShortcutStorage:
                 indent=4,
                 ensure_ascii=False,
             )
+            file.write("\n")
 
     @staticmethod
     def _serialize_shortcut(

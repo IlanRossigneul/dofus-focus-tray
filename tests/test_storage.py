@@ -151,3 +151,12 @@ def test_save_creates_parent_directory(tmp_path):
     storage.save({})
 
     assert path.exists()
+
+
+def test_save_writes_trailing_newline(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    storage = ShortcutStorage(path)
+
+    storage.save({})
+
+    assert path.read_text(encoding="utf-8").endswith("\n")
