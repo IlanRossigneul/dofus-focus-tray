@@ -12,7 +12,10 @@ from bridge.bridge import (
     DofusFocusBridge,
 )
 from bridge.models import DofusFocusState
-from config.paths import ICON_DIR
+from config.paths import ICON_DIR, SHORTCUTS_FILE
+from shortcuts.keyboard import KeyboardLayout
+from shortcuts.service import ShortcutService
+from shortcuts.storage import ShortcutStorage
 from ui.menu import MenuWidgets, create_menu
 from ui.shortcuts_window import ShortcutsWindow
 from ui.status_view import StatusView
@@ -29,6 +32,8 @@ class Application:
         self.status_view: StatusView | None = None
         self.menu_widgets: MenuWidgets | None = None
         self.shortcuts_window: ShortcutsWindow | None = None
+        self.shortcut_service: ShortcutService | None = None
+        self.shortcut_thread: threading.Thread | None = None
 
         self.bridge: DofusFocusBridge | None = None
         self.bus: MessageBus | None = None
@@ -38,6 +43,8 @@ class Application:
         self.dbus_thread: threading.Thread | None = None
 
         self.signals = ApplicationSignals()
+
+        self.shortcut_stop_event = threading.Event()
 
         self.icon_dir = ICON_DIR
 
@@ -70,6 +77,79 @@ class Application:
             if window_count > 0
             else KStatusNotifierItem.ItemStatus.Passive
         )
+
+    def _handle_shortcut_action(
+        self,
+        action: str,
+    ) -> None:
+        if (
+            self.bridge is None
+            or self.dbus_loop is None
+        ):
+            return
+
+        if action == "calibration":
+            self.dbus_loop.call_soon_threadsafe(
+                self.bridge.start_calibration,
+            )
+
+        elif action == "next":
+            self.dbus_loop.call_soon_threadsafe(
+                self.bridge.dofus_focus,
+                1,
+            )
+
+        elif action == "previous":
+            self.dbus_loop.call_soon_threadsafe(
+                self.bridge.dofus_focus,
+                -1,
+            )
+
+    def _run_shortcuts(self) -> None:
+        keyboard_layout = KeyboardLayout()
+
+        try:
+            asyncio.run(
+                keyboard_layout.connect(),
+            )
+
+            configuration = ShortcutStorage(
+                SHORTCUTS_FILE,
+            ).load()
+
+            self.shortcut_service = ShortcutService(
+                keyboard_layout=keyboard_layout,
+                configuration=configuration,
+                on_action=self._handle_shortcut_action,
+                stop_requested=self.shortcut_stop_event.is_set,
+            )
+
+            self.shortcut_service.run()
+
+        except Exception as error:
+            print(
+                "[SHORTCUT SERVICE] Thread error:",
+                error,
+                flush=True,
+            )
+
+        finally:
+            asyncio.run(
+                keyboard_layout.close(),
+            )
+
+            self.shortcut_service = None
+
+    def _start_shortcuts(self) -> None:
+        self.shortcut_stop_event.clear()
+
+        self.shortcut_thread = threading.Thread(
+            target=self._run_shortcuts,
+            name="ShortcutThread",
+            daemon=True,
+        )
+
+        self.shortcut_thread.start()
 
     def _request_calibration(self) -> None:
         if (
@@ -159,7 +239,12 @@ class Application:
         self.dbus_thread.start()
 
     def _stop(self) -> None:
+        self.shortcut_stop_event.set()
+
         self._stop_dbus()
+
+        if self.shortcut_thread is not None:
+            self.shortcut_thread.join()
 
         if self.dbus_thread is not None:
             self.dbus_thread.join()
@@ -201,6 +286,7 @@ class Application:
         )
 
         self._start_dbus()
+        self._start_shortcuts()
 
         exit_code = app.exec()
 

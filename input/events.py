@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Iterator
 import select
@@ -38,6 +39,7 @@ def read_events(device: InputDeviceInfo) -> Iterator[InputEvent]:
 
 def read_events_from_devices(
     devices: list[InputDeviceInfo],
+    stop_requested: Callable[[], bool],
 ) -> Iterator[InputEvent]:
     """Read events from multiple evdev interfaces simultaneously."""
 
@@ -65,11 +67,12 @@ def read_events_from_devices(
     }
 
     try:
-        while True:
+        while not stop_requested():
             ready, _, _ = select.select(
                 input_devices,
                 [],
                 [],
+                0.2,
             )
 
             for input_device in ready:
