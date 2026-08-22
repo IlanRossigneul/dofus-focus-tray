@@ -1,8 +1,9 @@
 import asyncio
+import os
 import threading
 
 from dbus_next.aio import MessageBus
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QApplication
 from KStatusNotifierItem import KStatusNotifierItem
 
@@ -11,6 +12,7 @@ from bridge.bridge import (
     OBJECT_PATH,
     DofusFocusBridge,
 )
+from bridge.kwin import KWinController
 from bridge.models import DofusFocusState
 from config.paths import ICON_DIR, SHORTCUTS_FILE
 from shortcuts.keyboard import KeyboardLayout
@@ -45,6 +47,8 @@ class Application:
         self.signals = ApplicationSignals()
 
         self.shortcut_stop_event = threading.Event()
+
+        self.kwin_controller = KWinController()
 
         self.icon_dir = ICON_DIR
 
@@ -171,6 +175,14 @@ class Application:
         self.shortcuts_window.show()
         self.shortcuts_window.raise_()
         self.shortcuts_window.activateWindow()
+
+        if self.dbus_loop is not None:
+            asyncio.run_coroutine_threadsafe(
+                self.kwin_controller.set_window_keep_above(
+                    os.getpid(),
+                ),
+                self.dbus_loop,
+            )
 
     def _stop_dbus(self) -> None:
         if (

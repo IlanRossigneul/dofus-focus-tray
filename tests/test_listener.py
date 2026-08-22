@@ -71,7 +71,7 @@ def test_listener_captures_first_valid_shortcut(monkeypatch):
 
     monkeypatch.setattr(
         "shortcuts.listener.read_events_from_devices",
-        lambda devices: iter(events),
+        lambda devices, stop_requested=lambda: False: iter(events),
     )
 
     shortcut = ShortcutListener(FakeKeyboardLayout()).capture()
@@ -105,7 +105,10 @@ def test_listener_uses_keyboard_and_mouse_devices(monkeypatch):
         fake_classify_device,
     )
 
-    def fake_read_events(devices):
+    def fake_read_events(
+        devices,
+        stop_requested=lambda: False,
+    ):
         captured_devices.extend(devices)
         return iter(())
 
@@ -146,7 +149,7 @@ def test_listener_accepts_mouse_shortcut(monkeypatch):
 
     monkeypatch.setattr(
         "shortcuts.listener.read_events_from_devices",
-        lambda devices: iter(events),
+        lambda devices, stop_requested=lambda: False: iter(events),
     )
 
     shortcut = ShortcutListener(FakeKeyboardLayout()).capture()
@@ -174,7 +177,10 @@ def test_listener_stops_at_first_valid_shortcut(monkeypatch):
 
     consumed_events = []
 
-    def fake_read_events(devices):
+    def fake_read_events(
+        devices,
+        stop_requested=lambda: False,
+    ):
         for event in events:
             consumed_events.append(event)
             yield event
@@ -215,7 +221,7 @@ def test_listener_raises_if_event_stream_ends(monkeypatch):
 
     monkeypatch.setattr(
         "shortcuts.listener.read_events_from_devices",
-        lambda devices: iter(()),
+        lambda devices, stop_requested=lambda: False: iter(()),
     )
 
     try:
@@ -226,3 +232,44 @@ def test_listener_raises_if_event_stream_ends(monkeypatch):
         )
     else:
         raise AssertionError("Expected RuntimeError")
+
+
+def test_listener_passes_stop_requested_to_event_reader(monkeypatch):
+    keyboard = make_device("/dev/input/event0", "Keyboard")
+
+    received_stop_requested = []
+
+    def stop_requested():
+        return True
+
+    def fake_read_events(
+        devices,
+        stop_requested=lambda: False,
+    ):
+        received_stop_requested.append(stop_requested)
+        return iter(())
+
+    monkeypatch.setattr(
+        "shortcuts.listener.discover_input_devices",
+        lambda: [keyboard],
+    )
+
+    monkeypatch.setattr(
+        "shortcuts.listener.classify_device",
+        lambda device: Classification(DeviceClass.KEYBOARD, 100),
+    )
+
+    monkeypatch.setattr(
+        "shortcuts.listener.read_events_from_devices",
+        fake_read_events,
+    )
+
+    try:
+        ShortcutListener(FakeKeyboardLayout()).capture(
+            stop_requested=stop_requested,
+        )
+    except RuntimeError:
+        pass
+
+    assert len(received_stop_requested) == 1
+    assert received_stop_requested[0] is stop_requested

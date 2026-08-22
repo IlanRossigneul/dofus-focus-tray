@@ -39,32 +39,26 @@ def read_events(device: InputDeviceInfo) -> Iterator[InputEvent]:
 
 def read_events_from_devices(
     devices: list[InputDeviceInfo],
-    stop_requested: Callable[[], bool],
+    stop_requested: Callable[[], bool] = lambda: False,
 ) -> Iterator[InputEvent]:
     """Read events from multiple evdev interfaces simultaneously."""
 
     input_devices = []
+    info_by_fd = {}
 
     for device in devices:
         try:
-            input_devices.append(
-                evdev.InputDevice(device.path)
+            input_device = evdev.InputDevice(
+                device.path,
             )
         except (PermissionError, OSError):
             continue
 
+        input_devices.append(input_device)
+        info_by_fd[input_device.fileno()] = device
+
     if not input_devices:
         return
-
-    device_by_fd = {
-        input_device.fileno(): input_device
-        for input_device in input_devices
-    }
-
-    info_by_fd = {
-        input_device.fileno(): device
-        for input_device, device in zip(input_devices, devices)
-    }
 
     try:
         while not stop_requested():
@@ -145,28 +139,4 @@ def is_user_input(event: InputEvent) -> bool:
         is_mouse_motion(event)
         or is_mouse_button(event)
         or is_keyboard_key(event)
-    )
-
-
-def describe_event(event: InputEvent) -> str:
-    """Return a human-readable description of an input event."""
-
-    event_type = evdev.ecodes.EV.get(
-        event.event_type,
-        str(event.event_type),
-    )
-
-    event_code = evdev.ecodes.bytype.get(
-        event.event_type,
-        {},
-    ).get(
-        event.event_code,
-        str(event.event_code),
-    )
-
-    return (
-        f"{event.device.path} "
-        f"{event_type} "
-        f"{event_code} "
-        f"{event.value}"
     )

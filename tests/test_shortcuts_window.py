@@ -1,9 +1,9 @@
 import threading
-import time
 
+from PySide6.QtCore import QEvent
+from PySide6.QtGui import QFocusEvent
 from PySide6.QtWidgets import QApplication
 
-from shortcuts.listener import ShortcutListener
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
 from ui.shortcuts_window import (
@@ -27,6 +27,20 @@ def make_window(tmp_path):
     return ShortcutsWindow(
         storage_path=tmp_path / "shortcuts.json",
     )
+
+
+def start_fake_capture(
+    window,
+    target,
+):
+    configuration_name, shortcut_type = target
+
+    window._capture_target = target
+    window._capture_original = getattr(
+        window._configurations[configuration_name],
+        shortcut_type,
+    )
+    window._capture_active = True
 
 
 def test_window_has_expected_title(tmp_path):
@@ -146,7 +160,7 @@ def test_existing_shortcuts_are_loaded_and_displayed(
     window.close()
 
 
-def test_starting_capture_disables_all_controls(
+def test_starting_capture_disables_all_controls_except_target(
     tmp_path,
     monkeypatch,
 ):
@@ -183,28 +197,31 @@ def test_starting_capture_disables_all_controls(
         "calibration",
         "primary",
     )
+    assert window._capture_original is None
 
     assert window._save_button.isEnabled() is False
     assert window._quit_button.isEnabled() is False
 
-    for button in window._buttons.values():
-        assert button.isEnabled() is False
+    for key, button in window._buttons.items():
+        if key == ("calibration", "primary"):
+            assert button.isEnabled() is True
+        else:
+            assert button.isEnabled() is False
 
     assert target.text() == "Appuyez sur une touche..."
 
     window.close()
 
 
-def test_capture_result_updates_only_targeted_shortcut(
+def test_capture_result_updates_targeted_shortcut(
     tmp_path,
 ):
     window = make_window(tmp_path)
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     shortcut = Shortcut(
         trigger="D",
@@ -250,6 +267,9 @@ def test_capture_result_updates_only_targeted_shortcut(
         == "CTRL + D"
     )
 
+    assert window._capture_active is False
+    assert window._capture_target is None
+
     window.close()
 
 
@@ -280,11 +300,10 @@ def test_capture_can_replace_existing_shortcut(
         modifiers=frozenset({"ALT"}),
     )
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     window._handle_shortcut_captured(
         replacement,
@@ -307,6 +326,104 @@ def test_capture_can_replace_existing_shortcut(
     window.close()
 
 
+def test_same_shortcut_can_be_kept_in_same_field(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        == existing
+    )
+
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_duplicate_shortcut_does_not_modify_configuration(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    original_target = Shortcut(
+        trigger="F",
+        modifiers=frozenset({"ALT"}),
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    window._configurations[
+        "next"
+    ].primary = original_target
+
+    start_fake_capture(
+        window,
+        ("previous", "primary"),
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        == existing
+    )
+
+    assert (
+        window._configurations[
+            "next"
+        ].primary
+        == original_target
+    )
+
+    assert (
+        window._configurations[
+            "previous"
+        ].primary
+        is None
+    )
+
+    assert window._capture_active is True
+    assert window._capture_target == (
+        "previous",
+        "primary",
+    )
+
+    window.close()
+
+
 def test_primary_and_alternate_are_independent(
     tmp_path,
 ):
@@ -320,21 +437,19 @@ def test_primary_and_alternate_are_independent(
         trigger="BTN_SIDE",
     )
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     window._handle_shortcut_captured(
         primary,
     )
 
-    window._capture_target = (
-        "calibration",
-        "alternate",
+    start_fake_capture(
+        window,
+        ("calibration", "alternate"),
     )
-    window._capture_active = True
 
     window._handle_shortcut_captured(
         alternate,
@@ -376,11 +491,10 @@ def test_capture_result_reenables_all_controls(
 ):
     window = make_window(tmp_path)
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     for button in window._buttons.values():
         button.setEnabled(False)
@@ -421,11 +535,10 @@ def test_capture_failure_restores_current_configuration(
 
     window._update_buttons()
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     for button in window._buttons.values():
         button.setEnabled(False)
@@ -497,11 +610,10 @@ def test_new_shortcut_is_not_saved_before_save(
         trigger="F",
     )
 
-    window._capture_target = (
-        "calibration",
-        "primary",
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
     )
-    window._capture_active = True
 
     window._handle_shortcut_captured(
         replacement,
@@ -706,7 +818,10 @@ def test_capture_worker_runs_capture_outside_gui_thread(
         async def close(self):
             pass
 
-    def fake_listener_capture(self):
+    def fake_listener_capture(
+        self,
+        stop_requested=lambda: False,
+    ):
         captured_threads.append(
             threading.current_thread().name,
         )
@@ -738,3 +853,439 @@ def test_capture_worker_runs_capture_outside_gui_thread(
     assert len(captured_threads) == 1
     assert captured_threads[0] != gui_thread
     assert captured_threads[0] == "ShortcutCaptureThread"
+
+
+def test_capture_worker_stops_without_callback_or_error(
+    monkeypatch,
+):
+    callback_called = threading.Event()
+    error_called = threading.Event()
+    capture_started = threading.Event()
+
+    class FakeKeyboardLayout:
+        async def connect(self):
+            pass
+
+        async def close(self):
+            pass
+
+    def fake_listener_capture(
+        self,
+        stop_requested=lambda: False,
+    ):
+        capture_started.set()
+
+        while not stop_requested():
+            pass
+
+        raise RuntimeError(
+            "Input event stream ended before a shortcut was captured."
+        )
+
+    monkeypatch.setattr(
+        "ui.shortcuts_window.KeyboardLayout",
+        FakeKeyboardLayout,
+    )
+
+    monkeypatch.setattr(
+        "ui.shortcuts_window.ShortcutListener.capture",
+        fake_listener_capture,
+    )
+
+    worker = ShortcutCaptureWorker(
+        callback=lambda shortcut: callback_called.set(),
+        error_callback=lambda error: error_called.set(),
+    )
+
+    worker.start()
+
+    assert capture_started.wait(timeout=2)
+
+    worker.stop()
+
+    assert not callback_called.wait(timeout=0.5)
+    assert not error_called.wait(timeout=0.5)
+
+
+def test_duplicate_shortcut_shows_capture_error(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    target = (
+        "next",
+        "primary",
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    button = window._buttons[target]
+
+    assert button.text() == "Raccourci déjà utilisé"
+    assert button._capture_error is True
+    assert window._capture_active is True
+    assert window._capture_target == target
+
+    window.close()
+
+
+def test_duplicate_shortcut_starts_cancel_timer(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    target = (
+        "next",
+        "primary",
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    assert window._duplicate_timer.isActive() is True
+    assert window._duplicate_timer.interval() == 2000
+
+    window.close()
+
+
+def test_duplicate_timeout_cancels_capture(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    original = Shortcut(
+        trigger="F",
+        modifiers=frozenset({"ALT"}),
+    )
+
+    duplicate = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    target = (
+        "next",
+        "primary",
+    )
+
+    window._configurations[
+        "next"
+    ].primary = original
+
+    window._configurations[
+        "calibration"
+    ].primary = duplicate
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        duplicate,
+    )
+
+    window._duplicate_timer.timeout.emit()
+
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    assert (
+        window._configurations[
+            "next"
+        ].primary
+        == original
+    )
+
+    assert window._buttons[target].text() == "ALT + F"
+    assert window._buttons[target].styleSheet() == ""
+
+    window.close()
+
+
+def test_capture_after_duplicate_clears_capture_error(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    target = (
+        "next",
+        "primary",
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    replacement = Shortcut(
+        trigger="F",
+        modifiers=frozenset({"ALT"}),
+    )
+
+    window._handle_shortcut_captured(
+        replacement,
+    )
+
+    button = window._buttons[target]
+
+    assert button.text() == "ALT + F"
+    assert button.styleSheet() == ""
+    assert button._capture_error is False
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    assert (
+        window._configurations[
+            "next"
+        ].primary
+        == replacement
+    )
+
+    assert window._duplicate_timer.isActive() is False
+
+    window.close()
+
+
+def test_escape_cancels_capture_and_restores_original_shortcut(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    target = (
+        "calibration",
+        "primary",
+    )
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    window._update_buttons()
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut("ESCAPE"),
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        == existing
+    )
+
+    assert window._buttons[target].text() == "CTRL + D"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_escape_cancels_capture_without_creating_shortcut(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    target = (
+        "calibration",
+        "primary",
+    )
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut("ESCAPE"),
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        is None
+    )
+
+    assert window._buttons[target].text() == "—"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_backspace_clears_current_shortcut(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    target = (
+        "calibration",
+        "primary",
+    )
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut("BACKSPACE"),
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        is None
+    )
+
+    assert window._buttons[target].text() == "—"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_backspace_clears_existing_shortcut(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    target = (
+        "calibration",
+        "primary",
+    )
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    window._update_buttons()
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut("BACKSPACE"),
+    )
+
+    assert (
+        window._configurations[
+            "calibration"
+        ].primary
+        is None
+    )
+
+    assert window._buttons[target].text() == "—"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_backspace_clears_capture_error(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+
+    target = (
+        "next",
+        "primary",
+    )
+
+    existing = Shortcut(
+        trigger="D",
+        modifiers=frozenset({"CTRL"}),
+    )
+
+    window._configurations[
+        "calibration"
+    ].primary = existing
+
+    start_fake_capture(
+        window,
+        target,
+    )
+
+    window._handle_shortcut_captured(
+        existing,
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut("BACKSPACE"),
+    )
+
+    assert (
+        window._configurations[
+            "next"
+        ].primary
+        is None
+    )
+
+    assert window._buttons[target].text() == "—"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()

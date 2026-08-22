@@ -12,7 +12,10 @@ class ShortcutListener:
     def __init__(self, keyboard_layout: KeyboardLayout):
         self._keyboard_layout = keyboard_layout
 
-    def capture(self) -> Shortcut:
+    def capture(
+        self,
+        stop_requested=lambda: False,
+    ) -> Shortcut:
         """Capture the first valid shortcut from available input devices."""
 
         devices = discover_input_devices()
@@ -31,10 +34,15 @@ class ShortcutListener:
             self._keyboard_layout,
         )
 
-        for event in read_events_from_devices(capture_devices):
+        for event in read_events_from_devices(
+            capture_devices,
+            stop_requested=stop_requested,
+        ):
             shortcut = capture.process_event(event)
 
             if shortcut is not None:
                 return shortcut
 
-        raise RuntimeError("Input event stream ended before a shortcut was captured.")
+        raise RuntimeError(
+            "Input event stream ended before a shortcut was captured."
+        )
