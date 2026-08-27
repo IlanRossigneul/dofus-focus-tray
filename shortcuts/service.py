@@ -1,7 +1,9 @@
 from collections.abc import Callable
 
+import pyudev
+
 from input.classifier import DeviceClass, classify_device
-from input.discovery import discover_input_devices
+from input.discovery import InputDeviceInfo, discover_input_devices
 from input.events import read_events_from_devices
 from shortcuts.keyboard import KeyboardLayout
 from shortcuts.model import Shortcut
@@ -49,6 +51,23 @@ class ShortcutService:
         if action is not None:
             self._on_action(action)
 
+    def _get_monitored_devices(
+        self,
+    ) -> list[InputDeviceInfo]:
+        """Return currently available keyboard and mouse devices."""
+
+        devices = discover_input_devices()
+
+        return [
+            device
+            for device in devices
+            if classify_device(device).device_class
+            in (
+                DeviceClass.KEYBOARD,
+                DeviceClass.MOUSE,
+            )
+        ]
+
     def update_configuration(
         self,
         configuration: dict[str, ShortcutConfiguration],
@@ -60,23 +79,28 @@ class ShortcutService:
     def run(self) -> None:
         """Monitor input events until monitoring is stopped."""
 
-        devices = discover_input_devices()
+        monitor_devices = self._get_monitored_devices()
 
-        monitor_devices = [
-            device
-            for device in devices
-            if classify_device(device).device_class
-            in (
-                DeviceClass.KEYBOARD,
-                DeviceClass.MOUSE,
-            )
-        ]
+        context = pyudev.Context()
+        device_monitor = pyudev.Monitor.from_netlink(
+            context,
+        )
+        device_monitor.filter_by(
+            subsystem="input",
+        )
+        device_monitor.start()
 
         for event in read_events_from_devices(
             monitor_devices,
             self._stop_requested,
+            device_monitor,
+            self._get_monitored_devices,
         ):
-            shortcut = self._processor.process_event(event)
+            shortcut = self._processor.process_event(
+                event,
+            )
 
             if shortcut is not None:
-                self._handle_shortcut(shortcut)
+                self._handle_shortcut(
+                    shortcut,
+                )

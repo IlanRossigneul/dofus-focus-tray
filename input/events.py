@@ -4,8 +4,9 @@ from typing import Iterator
 import select
 
 import evdev
+import pyudev
 
-from .discovery import InputDeviceInfo
+from .discovery import InputDeviceInfo, discover_input_devices
 
 
 @dataclass(frozen=True)
@@ -40,55 +41,143 @@ def read_events(device: InputDeviceInfo) -> Iterator[InputEvent]:
 def read_events_from_devices(
     devices: list[InputDeviceInfo],
     stop_requested: Callable[[], bool] = lambda: False,
+    device_monitor: pyudev.Monitor | None = None,
+    on_devices_changed: Callable[[], list[InputDeviceInfo]] | None = None,
 ) -> Iterator[InputEvent]:
     """Read events from multiple evdev interfaces simultaneously."""
 
-    input_devices = []
+    input_devices = {}
     info_by_fd = {}
+    fd_by_path = {}
+
+    def add_device(device: InputDeviceInfo) -> None:
+        if device.path in input_devices:
+            return
+
+        try:
+            input_device = evdev.InputDevice(device.path)
+            fd = input_device.fileno()
+        except (PermissionError, OSError):
+            return
+
+        input_devices[device.path] = input_device
+        info_by_fd[fd] = device
+        fd_by_path[device.path] = fd
+
+    def remove_device(path: str) -> None:
+        input_device = input_devices.pop(path, None)
+        fd = fd_by_path.pop(path, None)
+
+        if input_device is None:
+            return
+
+        if fd is not None:
+            info_by_fd.pop(fd, None)
+
+        input_device.close()
+
+    def sync_devices(
+        current_devices: list[InputDeviceInfo],
+    ) -> None:
+        current_paths = {
+            device.path
+            for device in current_devices
+        }
+
+        for path in list(input_devices):
+            if path not in current_paths:
+                remove_device(path)
+
+        for device in current_devices:
+            add_device(device)
 
     for device in devices:
-        try:
-            input_device = evdev.InputDevice(
-                device.path,
-            )
-        except (PermissionError, OSError):
-            continue
-
-        input_devices.append(input_device)
-        info_by_fd[input_device.fileno()] = device
-
-    if not input_devices:
-        return
+        add_device(device)
 
     try:
         while not stop_requested():
-            ready, _, _ = select.select(
-                input_devices,
-                [],
-                [],
-                0.2,
-            )
+            watched_fds = list(info_by_fd)
 
-            for input_device in ready:
-                device_info = info_by_fd[input_device.fileno()]
+            if device_monitor is not None:
+                watched_fds.append(
+                    device_monitor.fileno(),
+                )
 
-                try:
-                    events = input_device.read()
+            if not watched_fds:
+                select.select(
+                    [],
+                    [],
+                    [],
+                    0.2,
+                )
+                continue
 
-                except OSError:
+            try:
+                ready, _, _ = select.select(
+                    watched_fds,
+                    [],
+                    [],
+                    0.2,
+                )
+            except OSError:
+                if stop_requested():
+                    break
+
+                if on_devices_changed is not None:
+                    sync_devices(
+                        on_devices_changed(),
+                    )
+
+                continue
+
+            if device_monitor is not None:
+                monitor_fd = device_monitor.fileno()
+
+                if monitor_fd in ready:
+                    while device_monitor.poll(
+                        timeout=0,
+                    ) is not None:
+                        pass
+
+                    if (
+                        not stop_requested()
+                        and on_devices_changed is not None
+                    ):
+                        sync_devices(
+                            on_devices_changed(),
+                        )
+
+                    ready.remove(monitor_fd)
+
+            for fd in ready:
+                device_info = info_by_fd.get(fd)
+
+                if device_info is None:
                     continue
 
-                for event in events:
-                    yield InputEvent(
-                        device=device_info,
-                        event_type=event.type,
-                        event_code=event.code,
-                        value=event.value,
-                        timestamp=event.timestamp(),
+                input_device = input_devices.get(
+                    device_info.path,
+                )
+
+                if input_device is None:
+                    continue
+
+                try:
+                    for event in input_device.read():
+                        yield InputEvent(
+                            device=device_info,
+                            event_type=event.type,
+                            event_code=event.code,
+                            value=event.value,
+                            timestamp=event.timestamp(),
+                        )
+                except OSError:
+                    remove_device(
+                        device_info.path,
                     )
 
     finally:
-        for input_device in input_devices:
+        for input_device in input_devices.values():
             input_device.close()
 
 

@@ -176,13 +176,6 @@ class Application:
 
             self.shortcut_service.run()
 
-        except Exception as error:
-            print(
-                "[SHORTCUT SERVICE] Thread error:",
-                error,
-                flush=True,
-            )
-
         finally:
             asyncio.run(
                 keyboard_layout.close(),
