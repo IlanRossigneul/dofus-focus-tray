@@ -1,112 +1,124 @@
-from bridge.models import DofusFocusState, DofusWindow
+from bridge.models import DofusWindow
 
 
 class CalibrationController:
     """Manage Dofus window calibration."""
 
-    def __init__(self, state: DofusFocusState):
-        self.state = state
+    def __init__(self):
+        self._calibrating = False
+        self._calibrated_windows: list[DofusWindow] = []
+        self._total_windows = 0
         self._windows: list[str] = []
 
-    def set_windows(self, windows: list[str]) -> None:
-        """Update the currently detected Dofus windows."""
+    @property
+    def calibrating(self) -> bool:
+        return self._calibrating
+
+    @property
+    def calibrated(self) -> bool:
+        return bool(self._calibrated_windows) and not self._calibrating
+
+    @property
+    def calibrated_windows(self) -> list[DofusWindow]:
+        return list(self._calibrated_windows)
+
+    @property
+    def total_windows(self) -> int:
+        return self._total_windows
+
+    def update_windows(self, windows: list[str]) -> None:
+        """Update live windows during and after calibration."""
         new_windows = list(windows)
 
-        if not self.state.calibrating:
-            self._windows = new_windows
-            return
+        previous_uuids = {
+            window.uuid
+            for window in self._calibrated_windows
+        }
+        live_uuids = set(new_windows)
 
-        removed_windows = set(self._windows) - set(new_windows)
+        calibrated_window_disappeared = bool(
+            previous_uuids - live_uuids
+        )
 
-        if any(
-            window.uuid in removed_windows
-            for window in self.state.calibrated_windows
-        ):
-            self._windows = new_windows
+        self._windows = new_windows
+        self._total_windows = len(new_windows)
+
+        if self._calibrating and calibrated_window_disappeared:
             self.reset()
             return
 
-        self._windows = new_windows
-        self.state.total_windows = len(new_windows)
+        self._calibrated_windows = [
+            window
+            for window in self._calibrated_windows
+            if window.uuid in live_uuids
+        ]
 
-        calibrated_ids = {
-            window.uuid
-            for window in self.state.calibrated_windows
-        }
+        for order, window in enumerate(self._calibrated_windows):
+            window.position = new_windows.index(window.uuid)
+            window.calibrated_order = order
 
-        if new_windows and calibrated_ids == set(new_windows):
-            self.state.calibrating = False
-            self.state.calibrated = True
-            self.state.current_index = (
-                len(self.state.calibrated_windows) - 1
-            )
+        if (
+            self._calibrating
+            and len(self._calibrated_windows) == self._total_windows
+        ):
+            self._calibrating = False
 
-    def start(self, active_window_id: str | None = None) -> None:
+    def start(self, windows: list[str]) -> None:
         """Start a new calibration."""
         self.reset()
 
-        window_count = len(self._windows)
+        self._windows = list(windows)
+        self._total_windows = len(self._windows)
 
-        if window_count == 0:
+        if not self._windows:
             return
 
-        self.state.total_windows = window_count
-
-        # A single Dofus window does not require ordering.
-        if window_count == 1:
-            self.state.calibrated_windows = [
+        if len(self._windows) == 1:
+            self._calibrated_windows = [
                 DofusWindow(
-                    name="Compte 1",
                     uuid=self._windows[0],
                     position=0,
                     calibrated_order=0,
                 )
             ]
-            self.state.current_index = 0
-            self.state.calibrated = True
             return
 
-        self.state.calibrating = True
+        self._calibrating = True
 
-        if active_window_id in self._windows:
-            self.select_window(active_window_id)
-
-    def select_window(self, internal_id: str) -> bool:
+    def select_window(self, uuid: str) -> bool:
         """Register a Dofus window as the next calibrated window."""
-        if not self.state.calibrating:
+        if not self._calibrating:
             return False
 
-        if internal_id in (
-            window.uuid
-            for window in self.state.calibrated_windows
+        if uuid not in self._windows:
+            return False
+
+        if any(
+            window.uuid == uuid
+            for window in self._calibrated_windows
         ):
             return False
 
-        position = self._windows.index(internal_id)
+        position = self._windows.index(uuid)
 
-        calibrated_window = DofusWindow(
-            name=f"Compte {position + 1}",
-            uuid=internal_id,
-            position=position,
-            calibrated_order=len(self.state.calibrated_windows),
+        self._calibrated_windows.append(
+            DofusWindow(
+                uuid=uuid,
+                position=position,
+                calibrated_order=len(
+                    self._calibrated_windows
+                ),
+            )
         )
 
-        self.state.calibrated_windows.append(calibrated_window)
-
-        if len(self.state.calibrated_windows) == self.state.total_windows:
-            self.state.calibrating = False
-            self.state.calibrated = True
-            self.state.current_index = len(
-                self.state.calibrated_windows
-            ) - 1
+        if len(self._calibrated_windows) == self._total_windows:
+            self._calibrating = False
 
         return True
 
     def reset(self) -> None:
-        self.state.calibrated = False
-        self.state.calibrating = False
-
-        self.state.calibrated_windows = []
-
-        self.state.current_index = -1
-        self.state.total_windows = 0
+        """Reset the calibration."""
+        self._calibrating = False
+        self._calibrated_windows = []
+        self._total_windows = 0
+        self._windows = []

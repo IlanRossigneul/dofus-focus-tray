@@ -12,148 +12,90 @@ KWIN_SCRIPTING_INTERFACE = "org.kde.kwin.Scripting"
 
 
 class KWinController:
-    """Control KWin window activation."""
+    """Control KWin through its scripting DBus interface."""
 
-    async def activate_window(self, internal_id: str) -> None:
+    def __init__(self) -> None:
+        self._bus: MessageBus | None = None
+        self._scripting = None
+        self._lock = asyncio.Lock()
+
+    async def _connect(self) -> None:
+        if self._bus is not None:
+            return
+
+        self._bus = await MessageBus(
+            bus_type=BusType.SESSION,
+        ).connect()
+
+        introspection = await self._bus.introspect(
+            KWIN_BUS_NAME,
+            KWIN_SCRIPTING_PATH,
+        )
+
+        proxy = self._bus.get_proxy_object(
+            KWIN_BUS_NAME,
+            KWIN_SCRIPTING_PATH,
+            introspection,
+        )
+
+        self._scripting = proxy.get_interface(
+            KWIN_SCRIPTING_INTERFACE,
+        )
+
+    async def activate_window(self, uuid: str) -> None:
+        """Activate the KWin window identified by its UUID."""
+
         js_code = f"""
         var windows = workspace.windowList();
 
         for (var i = 0; i < windows.length; i++) {{
-            if (String(windows[i].internalId) === "{internal_id}") {{
-                console.log(
-                    "[KWIN SCRIPT] Activating Dofus window:",
-                    "{internal_id}"
-                );
-
+            if (String(windows[i].internalId) === "{uuid}") {{
                 workspace.activeWindow = windows[i];
                 break;
             }}
         }}
         """
 
-        temp_path = None
-        kwin_bus = None
+        async with self._lock:
+            await self._connect()
 
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".js",
-                delete=False,
-            ) as temp_file:
-                temp_file.write(js_code)
-                temp_path = temp_file.name
+            temp_path = None
+            script_id = None
 
-            kwin_bus = await MessageBus(bus_type=BusType.SESSION).connect()
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".js",
+                    delete=False,
+                ) as temp_file:
+                    temp_file.write(js_code)
+                    temp_path = temp_file.name
 
-            scripting_introspection = await kwin_bus.introspect(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-            )
+                script_id = await self._scripting.call_load_script(
+                    temp_path,
+                )
 
-            scripting_object = kwin_bus.get_proxy_object(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-                scripting_introspection,
-            )
+                await self._scripting.call_start()
 
-            scripting = scripting_object.get_interface(KWIN_SCRIPTING_INTERFACE)
+            finally:
+                if script_id is not None:
+                    try:
+                        await self._scripting.call_unload_script(
+                            str(script_id),
+                        )
+                    except Exception:
+                        pass
 
-            script_id = await scripting.call_load_script(temp_path)
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
 
-            await scripting.call_start()
+    async def close(self) -> None:
+        """Close the DBus connection."""
 
-            await asyncio.sleep(0.5)
+        if self._bus is None:
+            return
 
-            await scripting.call_unload_script(str(script_id))
+        self._bus.disconnect()
 
-        except Exception as error:
-            print(
-                "[DOFUS FOCUS BRIDGE] Failed to activate "
-                "Dofus window:",
-                error,
-            )
-
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
-
-            if kwin_bus:
-                kwin_bus.disconnect()
-
-    async def set_window_keep_above(
-        self,
-        pid: int,
-        enabled: bool = True,
-    ) -> None:
-        js_code = f"""
-        var windows = workspace.windowList();
-
-        for (var i = 0; i < windows.length; i++) {{
-            var window = windows[i];
-
-            if (window.pid !== {pid}) {{
-                continue;
-            }}
-
-            window.keepAbove = {str(enabled).lower()};
-            break;
-        }}
-        """
-
-        temp_path = None
-        kwin_bus = None
-
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".js",
-                delete=False,
-            ) as temp_file:
-                temp_file.write(js_code)
-                temp_path = temp_file.name
-
-            kwin_bus = await MessageBus(
-                bus_type=BusType.SESSION,
-            ).connect()
-
-            scripting_introspection = await kwin_bus.introspect(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-            )
-
-            scripting_object = kwin_bus.get_proxy_object(
-                KWIN_BUS_NAME,
-                KWIN_SCRIPTING_PATH,
-                scripting_introspection,
-            )
-
-            scripting = scripting_object.get_interface(
-                KWIN_SCRIPTING_INTERFACE,
-            )
-
-            script_id = await scripting.call_load_script(
-                temp_path,
-            )
-
-            await scripting.call_start()
-
-            await asyncio.sleep(0.2)
-
-            await scripting.call_unload_script(
-                str(script_id),
-            )
-
-        except Exception as error:
-            print(
-                "[DOFUS FOCUS BRIDGE] Failed to set "
-                "window keepAbove:",
-                repr(error),
-                flush=True,
-            )
-
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
-
-            if kwin_bus:
-                kwin_bus.disconnect()
+        self._bus = None
+        self._scripting = None

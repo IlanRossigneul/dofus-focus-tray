@@ -1,56 +1,93 @@
-import asyncio
-
+from bridge.calibration import CalibrationController
 from bridge.kwin import KWinController
-from bridge.models import DofusFocusState
+from bridge.windows import WindowsController
 
 
 class FocusController:
+    """Manage focus navigation between calibrated Dofus windows."""
+
     def __init__(
         self,
-        state: DofusFocusState,
+        windows: WindowsController,
+        calibration: CalibrationController,
         kwin: KWinController,
     ):
-        self._state = state
+        self._windows = windows
+        self._calibration = calibration
         self._kwin = kwin
+        self._current_index = -1
 
-    def update_active_window(self, internal_id: str) -> None:
-        for index, window in enumerate(self._state.calibrated_windows):
-            if window.uuid == internal_id:
-                self._state.current_index = index
+    def reset(self) -> None:
+        """Reset the current focus position."""
+        self._current_index = -1
+
+    @property
+    def current_index(self) -> int:
+        return self._current_index
+
+    def update_active_window(self, uuid: str) -> None:
+        """Update the current calibrated order from the active Dofus window."""
+        for window in self._calibration.calibrated_windows:
+            if window.uuid == uuid:
+                self._current_index = window.calibrated_order
                 break
 
-    def focus(self, direction: int) -> None:
-        if not self._state.calibrated:
-            return
-
-        windows = self._state.calibrated_windows
-
-        if not windows:
+    async def focus(self, direction: int) -> None:
+        """Focus the next or previous live Dofus window."""
+        if not self._calibration.calibrated:
             return
 
         if direction not in (-1, 1):
             return
 
-        current_index = self._state.current_index
+        live_windows = self._windows.windows
 
-        if current_index < 0 or current_index >= len(windows):
+        if not live_windows:
             return
 
-        next_index = (
-            current_index + direction
-        ) % len(windows)
+        calibrated_windows = self._calibration.calibrated_windows
 
-        self._state.current_index = next_index
+        candidates = [
+            window
+            for window in calibrated_windows
+            if window.uuid in live_windows
+        ]
 
-        window = windows[next_index]
+        if not candidates:
+            return
 
-        print(
-            "[DOFUS FOCUS BRIDGE] Focusing Dofus window:",
-            window.uuid,
-            "index:",
-            next_index,
-        )
+        if direction == 1:
+            next_windows = [
+                window
+                for window in candidates
+                if window.calibrated_order > self._current_index
+            ]
 
-        asyncio.create_task(
-            self._kwin.activate_window(window.uuid)
-        )
+            target = min(
+                next_windows,
+                key=lambda window: window.calibrated_order,
+                default=min(
+                    candidates,
+                    key=lambda window: window.calibrated_order,
+                ),
+            )
+
+        else:
+            previous_windows = [
+                window
+                for window in candidates
+                if window.calibrated_order < self._current_index
+            ]
+
+            target = max(
+                previous_windows,
+                key=lambda window: window.calibrated_order,
+                default=max(
+                    candidates,
+                    key=lambda window: window.calibrated_order,
+                ),
+            )
+        
+        self._current_index = target.calibrated_order
+
+        await self._kwin.activate_window(target.uuid)

@@ -15,6 +15,7 @@ from bridge.bridge import (
 from bridge.kwin import KWinController
 from bridge.models import DofusFocusState
 from config.paths import ICON_DIR, SHORTCUTS_FILE
+from notifications.dofus_notifications import DofusNotificationManager
 from shortcuts.keyboard import KeyboardLayout
 from shortcuts.service import ShortcutService
 from shortcuts.storage import ShortcutStorage
@@ -26,6 +27,10 @@ from ui.tray_view import create_indicator
 
 class ApplicationSignals(QObject):
     state_changed = Signal(object, int)
+    calibration_started = Signal(int, int, object)
+    calibration_already_selected = Signal()
+    calibration_cancelled = Signal()
+    new_window_detected = Signal()
 
 
 class Application:
@@ -33,6 +38,7 @@ class Application:
         self.indicator: KStatusNotifierItem | None = None
         self.status_view: StatusView | None = None
         self.menu_widgets: MenuWidgets | None = None
+        self.notification_manager: DofusNotificationManager | None = None
         self.shortcuts_window: ShortcutsWindow | None = None
         self.shortcut_service: ShortcutService | None = None
         self.shortcut_thread: threading.Thread | None = None
@@ -81,6 +87,46 @@ class Application:
             if window_count > 0
             else KStatusNotifierItem.ItemStatus.Passive
         )
+
+    def _handle_calibration_started(
+        self,
+        window_count: int,
+        step: int = 0,
+        summary: str | None = None,
+    ) -> None:
+        if self.notification_manager is None:
+            return
+
+        if window_count == 0:
+            self.notification_manager.notify_calibration_no_windows()
+
+        elif window_count == 1:
+            self.notification_manager.notify_calibration_one_window()
+
+        else:
+            self.notification_manager.notify_calibration_multiple_windows(
+                window_count=window_count,
+                step=step,
+                summary=summary,
+            )
+
+    def _handle_calibration_already_selected(self) -> None:
+        if self.notification_manager is None:
+            return
+
+        self.notification_manager.notify_calibration_already_selected()
+
+    def _handle_calibration_cancelled(self) -> None:
+        if self.notification_manager is None:
+            return
+
+        self.notification_manager.notify_calibration_cancelled()
+
+    def _handle_new_window_detected(self) -> None:
+        if self.notification_manager is None:
+            return
+
+        self.notification_manager.notify_new_window()
 
     def _handle_shortcut_action(
         self,
@@ -203,6 +249,14 @@ class Application:
 
         self.bridge = DofusFocusBridge(
             on_state_changed=self.signals.state_changed.emit,
+            on_calibration_started=self.signals.calibration_started.emit,
+            on_calibration_already_selected=(
+                self.signals.calibration_already_selected.emit
+            ),
+            on_new_window=self.signals.new_window_detected.emit,
+            on_calibration_cancelled=(
+                self.signals.calibration_cancelled.emit
+            ),
         )
 
         self.bus.export(
@@ -273,6 +327,22 @@ class Application:
             self._handle_state_changed,
         )
 
+        self.signals.calibration_started.connect(
+            self._handle_calibration_started,
+        )
+
+        self.signals.calibration_already_selected.connect(
+            self._handle_calibration_already_selected,
+        )
+
+        self.signals.calibration_cancelled.connect(
+            self._handle_calibration_cancelled,
+        )
+
+        self.signals.new_window_detected.connect(
+            self._handle_new_window_detected,
+        )
+
         self.indicator = create_indicator(
             self.icon_dir,
         )
@@ -296,6 +366,8 @@ class Application:
         self.indicator.setContextMenu(
             self.menu_widgets.menu,
         )
+
+        self.notification_manager = DofusNotificationManager()
 
         self._start_dbus()
         self._start_shortcuts()

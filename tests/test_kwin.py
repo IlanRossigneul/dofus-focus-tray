@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bridge.kwin import KWinController
@@ -52,8 +53,6 @@ def test_activate_window_loads_and_starts_kwin_script():
         scripting.call_start.assert_awaited_once()
         scripting.call_unload_script.assert_awaited_once_with("42")
 
-        bus.disconnect.assert_called_once()
-
     asyncio.run(run_test())
 
 
@@ -95,7 +94,10 @@ def test_activate_window_generates_script_for_target_window():
 
         script = temp_file.write.call_args.args[0]
 
-        assert 'String(windows[i].internalId) === "abc-123"' in script
+        assert (
+            'String(windows[i].internalId) === "abc-123"'
+            in script
+        )
         assert "workspace.activeWindow = windows[i]" in script
 
         scripting.call_load_script.assert_awaited_once_with(
@@ -134,7 +136,7 @@ def test_activate_window_removes_temporary_script():
     remove.assert_called_once()
 
 
-def test_activate_window_disconnects_bus_on_failure():
+def test_activate_window_propagates_connection_failure():
     controller = KWinController()
 
     bus = MagicMock()
@@ -142,33 +144,46 @@ def test_activate_window_disconnects_bus_on_failure():
     bus.introspect = AsyncMock(
         side_effect=RuntimeError("DBus failure")
     )
-    bus.disconnect = MagicMock()
-
-    with patch(
-        "bridge.kwin.MessageBus",
-        return_value=bus,
-    ):
-        asyncio.run(controller.activate_window("12345"))
-
-    bus.connect.assert_awaited_once()
-    bus.introspect.assert_awaited_once()
-    bus.disconnect.assert_called_once()
-
-
-def test_activate_window_removes_script_on_failure():
-    controller = KWinController()
-
-    bus = MagicMock()
-    bus.connect = AsyncMock(return_value=bus)
-    bus.introspect = AsyncMock(
-        side_effect=RuntimeError("DBus failure")
-    )
-    bus.disconnect = MagicMock()
 
     with (
         patch(
             "bridge.kwin.MessageBus",
             return_value=bus,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="DBus failure",
+        ),
+    ):
+        asyncio.run(controller.activate_window("12345"))
+
+    bus.connect.assert_awaited_once()
+    bus.introspect.assert_awaited_once()
+    bus.disconnect.assert_not_called()
+
+
+def test_activate_window_removes_script_on_failure():
+    controller = KWinController()
+    bus, _, scripting = create_kwin_mocks()
+
+    bus.connect = AsyncMock(return_value=bus)
+    scripting.call_start = AsyncMock(
+        side_effect=RuntimeError("KWin script failure")
+    )
+
+    temp_file = MagicMock()
+    temp_file.name = "/tmp/test-kwin-script.js"
+    temp_file.__enter__.return_value = temp_file
+    temp_file.__exit__.return_value = None
+
+    with (
+        patch(
+            "bridge.kwin.MessageBus",
+            return_value=bus,
+        ),
+        patch(
+            "bridge.kwin.tempfile.NamedTemporaryFile",
+            return_value=temp_file,
         ),
         patch(
             "bridge.kwin.os.path.exists",
@@ -177,7 +192,39 @@ def test_activate_window_removes_script_on_failure():
         patch(
             "bridge.kwin.os.remove",
         ) as remove,
+        pytest.raises(
+            RuntimeError,
+            match="KWin script failure",
+        ),
     ):
         asyncio.run(controller.activate_window("12345"))
 
-    remove.assert_called_once()
+    remove.assert_called_once_with(
+        "/tmp/test-kwin-script.js"
+    )
+    scripting.call_unload_script.assert_awaited_once_with(
+        "42"
+    )
+
+
+def test_close_disconnects_bus():
+    controller = KWinController()
+    bus = MagicMock()
+
+    controller._bus = bus
+    controller._scripting = MagicMock()
+
+    asyncio.run(controller.close())
+
+    bus.disconnect.assert_called_once()
+    assert controller._bus is None
+    assert controller._scripting is None
+
+
+def test_close_does_nothing_when_not_connected():
+    controller = KWinController()
+
+    asyncio.run(controller.close())
+
+    assert controller._bus is None
+    assert controller._scripting is None
