@@ -184,7 +184,12 @@ def test_service_runs_input_monitoring(monkeypatch):
 
         return Classification(DeviceClass.GAMEPAD, 100)
 
-    def fake_read_events(devices, stop_requested):
+    def fake_read_events(
+        devices,
+        stop_requested,
+        device_monitor,
+        get_devices,
+    ):
         captured_devices.extend(devices)
         return iter(events)
 

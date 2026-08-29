@@ -24,6 +24,7 @@ class ShortcutService:
         self._configuration = configuration
         self._on_action = on_action
         self._stop_requested = stop_requested
+        self._enabled = True
         self._processor = ShortcutProcessor(
             keyboard_layout,
         )
@@ -46,6 +47,9 @@ class ShortcutService:
     def _handle_shortcut(self, shortcut: Shortcut) -> None:
         """Handle a captured shortcut and execute its configured action."""
 
+        if not self._enabled:
+            return
+
         action = self._match_shortcut(shortcut)
 
         if action is not None:
@@ -67,6 +71,14 @@ class ShortcutService:
                 DeviceClass.MOUSE,
             )
         ]
+
+    def set_enabled(
+        self,
+        enabled: bool,
+    ) -> None:
+        """Enable or disable shortcut actions."""
+
+        self._enabled = enabled
 
     def update_configuration(
         self,

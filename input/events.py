@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from typing import Iterator
 import select
@@ -6,6 +6,7 @@ import select
 import evdev
 import pyudev
 
+from .classifier import DeviceClass, get_devices_by_class
 from .discovery import InputDeviceInfo, discover_input_devices
 
 
@@ -36,6 +37,29 @@ def read_events(device: InputDeviceInfo) -> Iterator[InputEvent]:
             )
     finally:
         input_device.close()
+
+
+def read_events_for_classes(
+    device_classes: Collection[DeviceClass],
+    stop_requested: Callable[[], bool] = lambda: False,
+) -> Iterator[InputEvent]:
+    """Read events from all devices matching the requested classes."""
+
+    devices = discover_input_devices()
+
+    capture_devices = [
+        device
+        for device_class in device_classes
+        for device in get_devices_by_class(
+            devices,
+            device_class,
+        )
+    ]
+
+    yield from read_events_from_devices(
+        capture_devices,
+        stop_requested=stop_requested,
+    )
 
 
 def read_events_from_devices(

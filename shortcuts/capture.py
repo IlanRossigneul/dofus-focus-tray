@@ -29,6 +29,17 @@ IGNORED_MOUSE_BUTTONS = {
 }
 
 
+class ShortcutCaptureRejected(Exception):
+    """Raised when an input event is rejected during shortcut capture."""
+
+    def __init__(
+        self,
+        trigger: str,
+    ) -> None:
+        super().__init__(trigger)
+        self.trigger = trigger
+
+
 def get_modifier(event) -> str | None:
     """Return the modifier represented by an event."""
 
@@ -36,6 +47,35 @@ def get_modifier(event) -> str | None:
         return None
 
     return MODIFIER_KEYS.get(event.event_code)
+
+
+def get_rejected_mouse_button(
+    event,
+    allowed_mouse_buttons: set[int],
+) -> str | None:
+    """Return the mouse button rejected during shortcut capture."""
+
+    if event.event_type != evdev.ecodes.EV_KEY:
+        return None
+
+    if event.value != 1:
+        return None
+
+    mouse_buttons = {
+        evdev.ecodes.BTN_LEFT: "BTN_LEFT",
+        evdev.ecodes.BTN_MIDDLE: "BTN_MIDDLE",
+        evdev.ecodes.BTN_RIGHT: "BTN_RIGHT",
+        evdev.ecodes.BTN_SIDE: "BTN_SIDE",
+        evdev.ecodes.BTN_EXTRA: "BTN_EXTRA",
+    }
+
+    if event.event_code not in mouse_buttons:
+        return None
+
+    if event.event_code in allowed_mouse_buttons:
+        return None
+
+    return mouse_buttons[event.event_code]
 
 
 def get_trigger(
@@ -66,8 +106,17 @@ def get_trigger(
 class ShortcutCapture:
     """Capture one keyboard or supported mouse-button shortcut."""
 
-    def __init__(self, keyboard_layout: KeyboardLayout):
+    def __init__(
+        self,
+        keyboard_layout: KeyboardLayout,
+        allowed_mouse_buttons: set[int] | None = None,
+    ):
         self._keyboard_layout = keyboard_layout
+        self._allowed_mouse_buttons = (
+            allowed_mouse_buttons
+            if allowed_mouse_buttons is not None
+            else set(MOUSE_TRIGGERS)
+        )
         self._pressed_modifiers = set()
         self._completed = False
 
@@ -89,6 +138,16 @@ class ShortcutCapture:
         # Ignore key-repeat events.
         if event.value == 2:
             return None
+
+        rejected_mouse_button = get_rejected_mouse_button(
+            event,
+            self._allowed_mouse_buttons,
+        )
+
+        if rejected_mouse_button is not None:
+            raise ShortcutCaptureRejected(
+                rejected_mouse_button,
+            )
 
         modifier = get_modifier(event)
 

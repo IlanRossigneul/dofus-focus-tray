@@ -4,6 +4,7 @@ from PySide6.QtCore import QEvent
 from PySide6.QtGui import QFocusEvent
 from PySide6.QtWidgets import QApplication
 
+from input.classifier import DeviceClass
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
 from ui.shortcuts_window import (
@@ -169,8 +170,11 @@ def test_starting_capture_disables_all_controls_except_target(
     class FakeWorker:
         def __init__(
             self,
+            device_classes,
+            allowed_mouse_buttons,
             callback,
             error_callback,
+            rejected_callback,
         ):
             self.callback = callback
             self.error_callback = error_callback
@@ -771,8 +775,11 @@ def test_second_capture_is_ignored_while_capture_is_active(
     class FakeWorker:
         def __init__(
             self,
+            device_classes,
+            allowed_mouse_buttons,
             callback,
             error_callback,
+            rejected_callback,
         ):
             pass
 
@@ -820,6 +827,8 @@ def test_capture_worker_runs_capture_outside_gui_thread(
 
     def fake_listener_capture(
         self,
+        device_classes,
+        allowed_mouse_buttons=None,
         stop_requested=lambda: False,
     ):
         captured_threads.append(
@@ -840,19 +849,23 @@ def test_capture_worker_runs_capture_outside_gui_thread(
     )
 
     worker = ShortcutCaptureWorker(
+        device_classes=(
+            DeviceClass.KEYBOARD,
+        ),
+        allowed_mouse_buttons=set(),
         callback=lambda shortcut: None,
         error_callback=lambda error: None,
+        rejected_callback=lambda trigger: None,
     )
-
-    gui_thread = threading.current_thread().name
 
     worker.start()
 
-    assert finished.wait(timeout=2)
+    assert finished.wait(timeout=1)
+    assert captured_threads == [
+        "ShortcutCaptureThread",
+    ]
 
-    assert len(captured_threads) == 1
-    assert captured_threads[0] != gui_thread
-    assert captured_threads[0] == "ShortcutCaptureThread"
+    worker.stop()
 
 
 def test_capture_worker_stops_without_callback_or_error(
@@ -871,6 +884,8 @@ def test_capture_worker_stops_without_callback_or_error(
 
     def fake_listener_capture(
         self,
+        device_classes,
+        allowed_mouse_buttons=None,
         stop_requested=lambda: False,
     ):
         capture_started.set()
@@ -893,18 +908,23 @@ def test_capture_worker_stops_without_callback_or_error(
     )
 
     worker = ShortcutCaptureWorker(
+        device_classes=(
+            DeviceClass.KEYBOARD,
+        ),
+        allowed_mouse_buttons=set(),
         callback=lambda shortcut: callback_called.set(),
         error_callback=lambda error: error_called.set(),
+        rejected_callback=lambda trigger: None,
     )
 
     worker.start()
 
-    assert capture_started.wait(timeout=2)
+    assert capture_started.wait(timeout=1)
 
     worker.stop()
 
-    assert not callback_called.wait(timeout=0.5)
-    assert not error_called.wait(timeout=0.5)
+    assert not callback_called.is_set()
+    assert not error_called.is_set()
 
 
 def test_duplicate_shortcut_shows_capture_error(

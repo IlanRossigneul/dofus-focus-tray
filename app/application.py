@@ -206,8 +206,15 @@ class Application:
         )
 
     def _open_shortcuts_window(self) -> None:
+        if self.shortcut_service is not None:
+            self.shortcut_service.set_enabled(False)
+
         if self.shortcuts_window is None:
             self.shortcuts_window = ShortcutsWindow()
+
+            self.shortcuts_window.closed.connect(
+                self._handle_shortcuts_window_closed,
+            )
         else:
             self.shortcuts_window.reload()
 
@@ -222,6 +229,10 @@ class Application:
                 ),
                 self.dbus_loop,
             )
+
+    def _handle_shortcuts_window_closed(self) -> None:
+        if self.shortcut_service is not None:
+            self.shortcut_service.set_enabled(True)
 
     def _stop_dbus(self) -> None:
         if (

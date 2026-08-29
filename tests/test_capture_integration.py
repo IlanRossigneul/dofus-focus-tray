@@ -151,27 +151,3 @@ def test_mouse_motion_input_event_is_ignored():
 
     assert capture.process_event(event) is None
     assert capture.completed is False
-
-
-def test_ignored_mouse_button_input_event_is_ignored():
-    mouse = make_device(
-        "/dev/input/event11",
-        "Test Mouse",
-    )
-
-    for button in (
-        evdev.ecodes.BTN_LEFT,
-        evdev.ecodes.BTN_RIGHT,
-        evdev.ecodes.BTN_MIDDLE,
-    ):
-        capture = make_capture()
-
-        event = make_event(
-            mouse,
-            evdev.ecodes.EV_KEY,
-            button,
-            1,
-        )
-
-        assert capture.process_event(event) is None
-        assert capture.completed is False

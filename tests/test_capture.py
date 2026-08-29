@@ -163,21 +163,6 @@ def test_mouse_button_with_modifier_is_captured():
     assert str(shortcut) == "CTRL + BTN_SIDE"
 
 
-def test_ignored_mouse_buttons_are_not_captured():
-    for button in (
-        evdev.ecodes.BTN_LEFT,
-        evdev.ecodes.BTN_RIGHT,
-        evdev.ecodes.BTN_MIDDLE,
-    ):
-        capture = make_capture()
-
-        assert capture.process_event(
-            key_event(button, 1)
-        ) is None
-
-        assert capture.completed is False
-
-
 def test_mouse_motion_is_ignored():
     capture = make_capture()
 

@@ -1,7 +1,7 @@
 import asyncio
 import copy
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt, Signal
@@ -16,7 +16,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+import evdev
+
 from config.paths import ICON_DIR, SHORTCUTS_FILE
+from input.classifier import DeviceClass
+from shortcuts.capture import ShortcutCaptureRejected
 from shortcuts.keyboard import KeyboardLayout
 from shortcuts.listener import ShortcutListener
 from shortcuts.model import Shortcut
@@ -28,11 +32,17 @@ class ShortcutCaptureWorker:
 
     def __init__(
         self,
+        device_classes: Collection[DeviceClass],
+        allowed_mouse_buttons: set[int] | None,
         callback: Callable[[Shortcut], None],
         error_callback: Callable[[Exception], None],
+        rejected_callback: Callable[[str], None],
     ) -> None:
+        self._device_classes = device_classes
+        self._allowed_mouse_buttons = allowed_mouse_buttons
         self._callback = callback
         self._error_callback = error_callback
+        self._rejected_callback = rejected_callback
         self._capture_event = threading.Event()
         self._stop_requested = threading.Event()
 
@@ -62,11 +72,22 @@ class ShortcutCaptureWorker:
             while not self._stop_requested.is_set():
                 self._capture_event.clear()
 
-                shortcut = ShortcutListener(
-                    keyboard_layout,
-                ).capture(
-                    stop_requested=self._stop_requested.is_set,
-                )
+                try:
+                    shortcut = ShortcutListener(
+                        keyboard_layout,
+                    ).capture(
+                        self._device_classes,
+                        allowed_mouse_buttons=self._allowed_mouse_buttons,
+                        stop_requested=self._stop_requested.is_set,
+                    )
+                except ShortcutCaptureRejected as error:
+                    if self._stop_requested.is_set():
+                        break
+
+                    self._rejected_callback(
+                        error.trigger,
+                    )
+                    continue
 
                 if self._stop_requested.is_set():
                     break
@@ -161,6 +182,8 @@ class ShortcutsWindow(QDialog):
 
     shortcut_captured = Signal(object)
     capture_failed = Signal(object)
+    capture_rejected = Signal(str)
+    closed = Signal()
 
     def __init__(
         self,
@@ -206,6 +229,10 @@ class ShortcutsWindow(QDialog):
 
         self.capture_failed.connect(
             self._handle_capture_failed,
+        )
+
+        self.capture_rejected.connect(
+            self._handle_capture_rejected,
         )
 
         self.setWindowIcon(
@@ -355,7 +382,7 @@ class ShortcutsWindow(QDialog):
     ) -> ShortcutButton:
         button = ShortcutButton()
 
-        button.setMinimumWidth(220)
+        button.setMinimumWidth(270)
 
         button.clicked.connect(
             lambda checked=False: self._start_capture(
@@ -433,9 +460,25 @@ class ShortcutsWindow(QDialog):
             "Appuyez sur une touche..."
         )
 
+        device_classes = (
+            DeviceClass.KEYBOARD,
+            DeviceClass.MOUSE,
+        )
+
+        if configuration_name == "calibration":
+            allowed_mouse_buttons = set()
+        else:
+            allowed_mouse_buttons = {
+                evdev.ecodes.BTN_SIDE,
+                evdev.ecodes.BTN_EXTRA,
+            }
+
         self._capture_worker = ShortcutCaptureWorker(
+            device_classes=device_classes,
+            allowed_mouse_buttons=allowed_mouse_buttons,
             callback=self.shortcut_captured.emit,
             error_callback=self.capture_failed.emit,
+            rejected_callback=self.capture_rejected.emit,
         )
 
         self._capture_worker.start()
@@ -467,7 +510,10 @@ class ShortcutsWindow(QDialog):
 
         return False
 
-    def _show_capture_error(self) -> None:
+    def _show_capture_error(
+        self,
+        message: str,
+    ) -> None:
         if self._capture_target is None:
             return
 
@@ -475,10 +521,7 @@ class ShortcutsWindow(QDialog):
             self._capture_target
         ]
 
-        button.setText(
-            "Raccourci déjà utilisé"
-        )
-
+        button.setText(message)
         button.set_capture_error(True)
 
     def _finish_capture(self) -> None:
@@ -560,7 +603,9 @@ class ShortcutsWindow(QDialog):
             shortcut,
             self._capture_target,
         ):
-            self._show_capture_error()
+            self._show_capture_error(
+                "Raccourci déjà utilisé"
+            )
             self._duplicate_timer.start()
             return
 
@@ -579,6 +624,25 @@ class ShortcutsWindow(QDialog):
         )
 
         self._finish_capture()
+
+    def _handle_capture_rejected(
+        self,
+        _trigger: str,
+    ) -> None:
+        if self._capture_target is None:
+            return
+
+        configuration_name, _ = self._capture_target
+
+        if configuration_name == "calibration":
+            message = "Bouton souris non autorisé"
+        else:
+            message = "Clics gauche / milieu / droit non autorisés"
+
+        self._show_capture_error(
+            message,
+        )
+        self._duplicate_timer.start()
 
     def _handle_capture_failed(
         self,
@@ -665,3 +729,4 @@ class ShortcutsWindow(QDialog):
             return
 
         event.accept()
+        self.closed.emit()

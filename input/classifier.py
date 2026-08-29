@@ -127,3 +127,16 @@ def classify_device(device: InputDeviceInfo) -> Classification:
         return Classification(DeviceClass.CONSUMER_CONTROL, 50)
 
     return Classification(DeviceClass.OTHER, 100)
+
+
+def get_devices_by_class(
+    devices: list[InputDeviceInfo],
+    device_class: DeviceClass,
+) -> list[InputDeviceInfo]:
+    """Return devices classified as the requested device class."""
+
+    return [
+        device
+        for device in devices
+        if classify_device(device).device_class == device_class
+    ]
