@@ -184,6 +184,7 @@ class ShortcutsWindow(QDialog):
     capture_failed = Signal(object)
     capture_rejected = Signal(str)
     closed = Signal()
+    configuration_saved = Signal(object)
 
     def __init__(
         self,
@@ -661,6 +662,10 @@ class ShortcutsWindow(QDialog):
             return
 
         self._storage.save(
+            self._configurations,
+        )
+
+        self.configuration_saved.emit(
             self._configurations,
         )
 

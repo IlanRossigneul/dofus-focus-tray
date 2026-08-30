@@ -18,7 +18,7 @@ from config.paths import ICON_DIR, SHORTCUTS_FILE
 from notifications.dofus_notifications import DofusNotificationManager
 from shortcuts.keyboard import KeyboardLayout
 from shortcuts.service import ShortcutService
-from shortcuts.storage import ShortcutStorage
+from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
 from ui.menu import MenuWidgets, create_menu
 from ui.shortcuts_window import ShortcutsWindow
 from ui.status_view import StatusView
@@ -74,6 +74,11 @@ class Application:
         state: DofusFocusState,
         window_count: int,
     ) -> None:
+        if self.shortcut_service is not None:
+            self.shortcut_service.set_calibration_valid(
+                state.calibrated,
+            )
+
         if self.status_view is None:
             return
 
@@ -208,12 +213,17 @@ class Application:
     def _open_shortcuts_window(self) -> None:
         if self.shortcut_service is not None:
             self.shortcut_service.set_enabled(False)
+            self.shortcut_service.set_mouse_interception_enabled(False)
 
         if self.shortcuts_window is None:
             self.shortcuts_window = ShortcutsWindow()
 
             self.shortcuts_window.closed.connect(
                 self._handle_shortcuts_window_closed,
+            )
+
+            self.shortcuts_window.configuration_saved.connect(
+                self._handle_shortcuts_configuration_saved,
             )
         else:
             self.shortcuts_window.reload()
@@ -232,7 +242,17 @@ class Application:
 
     def _handle_shortcuts_window_closed(self) -> None:
         if self.shortcut_service is not None:
+            self.shortcut_service.set_mouse_interception_enabled(True)
             self.shortcut_service.set_enabled(True)
+
+    def _handle_shortcuts_configuration_saved(
+        self,
+        configuration: dict[str, ShortcutConfiguration],
+    ) -> None:
+        if self.shortcut_service is not None:
+            self.shortcut_service.update_configuration(
+                configuration,
+            )
 
     def _stop_dbus(self) -> None:
         if (
