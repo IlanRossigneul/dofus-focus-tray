@@ -22,7 +22,7 @@ function getDofusWindows()
 }
 
 
-function getActiveWindow()
+function getActiveDofusWindowId()
 {
     var window =
         Workspace.activeWindow;
@@ -66,28 +66,15 @@ function activateWindow(internalId)
             continue;
         }
 
-        console.log(
-            "[DOFUS FOCUS TRAY] Setting Workspace.activeWindow to target"
-        );
-
         try
         {
-            // C'est l'API exacte sous KWin 6
+            // This is the exact API exposed by KWin 6.
             Workspace.activeWindow = window;
-
-            console.log(
-                "[DOFUS FOCUS TRAY] Workspace.activeWindow successfully assigned"
-            );
 
             return true;
         }
         catch(error)
         {
-            console.log(
-                "[DOFUS FOCUS TRAY] Failed to set activeWindow:",
-                error
-            );
-
             return false;
         }
     }

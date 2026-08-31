@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+import evdev
+
 from .discovery import InputDeviceInfo
 
 
@@ -19,10 +21,6 @@ class Classification:
     confidence: int
 
 
-def _has_event_type(device: InputDeviceInfo, event_type: int) -> bool:
-    return event_type in device.capabilities
-
-
 def _has_event_code(
     device: InputDeviceInfo,
     event_type: int,
@@ -33,8 +31,6 @@ def _has_event_code(
 
 def classify_device(device: InputDeviceInfo) -> Classification:
     """Classify an evdev interface from its reported capabilities."""
-
-    import evdev
 
     capabilities = device.capabilities
 

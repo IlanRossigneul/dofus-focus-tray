@@ -1,14 +1,17 @@
 import asyncio
+import logging
 import os
 import tempfile
 
 from dbus_next import BusType
 from dbus_next.aio import MessageBus
 
-
 KWIN_BUS_NAME = "org.kde.KWin"
 KWIN_SCRIPTING_PATH = "/Scripting"
 KWIN_SCRIPTING_INTERFACE = "org.kde.kwin.Scripting"
+
+
+logger = logging.getLogger(__name__)
 
 
 class KWinController:
@@ -84,7 +87,7 @@ class KWinController:
                             str(script_id),
                         )
                     except Exception:
-                        pass
+                        logger.debug("Failed to unload KWin script", exc_info=True)
 
                 if temp_path and os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -105,6 +108,7 @@ class KWinController:
         pid: int,
         enabled: bool = True,
     ) -> None:
+        """Set or clear the KeepAbove state for a window by PID."""
         js_code = f"""
         var windows = workspace.windowList();
 
@@ -163,13 +167,8 @@ class KWinController:
                 str(script_id),
             )
 
-        except Exception as error:
-            print(
-                "[DOFUS FOCUS BRIDGE] Failed to set "
-                "window keepAbove:",
-                repr(error),
-                flush=True,
-            )
+        except Exception:
+            logger.exception("Failed to set window keepAbove")
 
         finally:
             if temp_path and os.path.exists(temp_path):

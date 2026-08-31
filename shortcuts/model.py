@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import FrozenSet
 
 
 @dataclass(frozen=True)
@@ -7,9 +6,10 @@ class Shortcut:
     """Represent an input shortcut."""
 
     trigger: str
-    modifiers: FrozenSet[str] = frozenset()
+    modifiers: frozenset[str] = frozenset()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Normalize the trigger and modifiers to uppercase."""
         trigger = self.trigger.upper()
         modifiers = frozenset(modifier.upper() for modifier in self.modifiers)
 

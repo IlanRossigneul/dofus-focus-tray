@@ -4,7 +4,6 @@ from input.discovery import InputDeviceInfo
 from input.events import InputEvent
 from shortcuts.processor import ShortcutProcessor
 
-
 DEVICE = InputDeviceInfo(
     path="/dev/input/event0",
     name="Test device",
@@ -14,7 +13,6 @@ DEVICE = InputDeviceInfo(
     product=0,
     bus=0,
     capabilities={},
-    udev_properties={},
 )
 
 

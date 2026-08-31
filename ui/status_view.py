@@ -1,19 +1,17 @@
 from PySide6.QtGui import QAction
-from KStatusNotifierItem import KStatusNotifierItem
 
 from bridge.models import DofusFocusState
 
 
 class StatusView:
+    """Update tray menu items from the current Dofus Focus state."""
+
     def __init__(
         self,
-        indicator: KStatusNotifierItem,
         windows_item: QAction,
         order_item: QAction,
         active_window_item: QAction,
     ):
-        self.indicator = indicator
-
         self.windows_item = windows_item
         self.order_item = order_item
         self.active_window_item = active_window_item
@@ -22,6 +20,7 @@ class StatusView:
         self,
         state: DofusFocusState,
     ) -> str:
+        """Format the calibrated window names as a human-readable list."""
         windows = [
             window.name
             for window in state.calibrated_windows
@@ -40,6 +39,7 @@ class StatusView:
         state: DofusFocusState,
         window_count: int,
     ) -> None:
+        """Update the tray status items from the current application state."""
         window_label = "Fenêtre" if window_count in (0, 1) else "Fenêtres"
 
         self.windows_item.setText(

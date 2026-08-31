@@ -1,7 +1,7 @@
 class WindowsController:
     """Track live Dofus windows and the currently active window."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._windows: list[str] = []
         self._active_window: str | None = None
 

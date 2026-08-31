@@ -1,6 +1,6 @@
-from bridge.calibration import CalibrationController
-from bridge.kwin import KWinController
-from bridge.windows import WindowsController
+from .calibration import CalibrationController
+from .kwin import KWinController
+from .windows import WindowsController
 
 
 class FocusController:
@@ -57,14 +57,14 @@ class FocusController:
             return
 
         if direction == 1:
-            next_windows = [
+            next_candidates = [
                 window
                 for window in candidates
                 if window.calibrated_order > self._current_index
             ]
 
             target = min(
-                next_windows,
+                next_candidates,
                 key=lambda window: window.calibrated_order,
                 default=min(
                     candidates,
@@ -73,21 +73,21 @@ class FocusController:
             )
 
         else:
-            previous_windows = [
+            previous_candidates = [
                 window
                 for window in candidates
                 if window.calibrated_order < self._current_index
             ]
 
             target = max(
-                previous_windows,
+                previous_candidates,
                 key=lambda window: window.calibrated_order,
                 default=max(
                     candidates,
                     key=lambda window: window.calibrated_order,
                 ),
             )
-        
+
         self._current_index = target.calibrated_order
 
         await self._kwin.activate_window(target.uuid)

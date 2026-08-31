@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import ClassVar
 
 import evdev
 
@@ -8,7 +9,7 @@ from shortcuts.capture import ShortcutCapture
 class FakeKeyboardLayout:
     """Provide deterministic keyboard layout translations for tests."""
 
-    translations = {
+    translations: ClassVar[dict[int, str]] = {
         evdev.ecodes.KEY_D: "d",
         evdev.ecodes.KEY_E: "e",
         evdev.ecodes.KEY_Q: "a",

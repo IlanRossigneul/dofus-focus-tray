@@ -1,3 +1,4 @@
+import logging
 import select
 import threading
 import time
@@ -14,14 +15,17 @@ from input.interceptor import (
     get_configured_mouse_buttons,
     select_mouse,
 )
-from shortcuts.keyboard import KeyboardLayout
-from shortcuts.model import Shortcut
-from shortcuts.processor import ShortcutProcessor
-from shortcuts.storage import ShortcutConfiguration
 
+from .keyboard import KeyboardLayout
+from .model import Shortcut
+from .processor import ShortcutProcessor
+from .storage import ShortcutConfiguration
 
 MOUSE_DISCOVERY_ATTEMPTS = 10
 MOUSE_DISCOVERY_RETRY_DELAY = 1.0
+
+
+logger = logging.getLogger(__name__)
 
 
 class ShortcutService:
@@ -91,10 +95,10 @@ class ShortcutService:
         with self._mouse_state_lock:
             self._selected_mouse = selected_mouse
 
-            print(
-                f"[MOUSE GRAB DEBUG] Mouse grab started: "
-                f"{selected_mouse.path} ({selected_mouse.name})",
-                flush=True,
+            logger.info(
+                "Mouse grab started: device=%s path=%s",
+                selected_mouse.name,
+                selected_mouse.path,
             )
 
             if self._calibrated:
@@ -168,10 +172,9 @@ class ShortcutService:
                         break
 
                     if interceptor.should_intercept(event):
-                        print(
-                            "[MOUSE GRAB DEBUG] INTERCEPTED:",
+                        logger.debug(
+                            "Mouse event intercepted: event=%s",
                             evdev.categorize(event),
-                            flush=True,
                         )
 
                         self._process_mouse_event(
@@ -250,10 +253,7 @@ class ShortcutService:
 
             interceptor.stop()
 
-            print(
-                "[MOUSE GRAB DEBUG] Mouse grab released.",
-                flush=True,
-            )
+            logger.info("Mouse grab released")
 
     def set_calibration_valid(
         self,

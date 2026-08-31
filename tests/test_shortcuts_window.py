@@ -1,7 +1,5 @@
 import threading
 
-from PySide6.QtCore import QEvent
-from PySide6.QtGui import QFocusEvent
 from PySide6.QtWidgets import QApplication
 
 from input.classifier import DeviceClass
@@ -524,7 +522,7 @@ def test_capture_result_reenables_all_controls(
 
 def test_capture_failure_restores_current_configuration(
     tmp_path,
-    capsys,
+    caplog,
 ):
     window = make_window(tmp_path)
 
@@ -579,12 +577,7 @@ def test_capture_failure_restores_current_configuration(
     for button in window._buttons.values():
         assert button.isEnabled() is True
 
-    output = capsys.readouterr().out
-
-    assert (
-        "[SHORTCUTS WINDOW] Shortcut capture failed:"
-        in output
-    )
+    assert "Shortcut capture failed" in caplog.text
 
     window.close()
 

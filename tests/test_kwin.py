@@ -1,6 +1,7 @@
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from bridge.kwin import KWinController
 
@@ -66,7 +67,6 @@ def test_activate_window_generates_script_for_target_window():
     temp_file = MagicMock()
     temp_file.name = "/tmp/test-kwin-script.js"
     temp_file.__enter__.return_value = temp_file
-    temp_file.__exit__.return_value = None
 
     async def run_test():
         with (
@@ -174,7 +174,6 @@ def test_activate_window_removes_script_on_failure():
     temp_file = MagicMock()
     temp_file.name = "/tmp/test-kwin-script.js"
     temp_file.__enter__.return_value = temp_file
-    temp_file.__exit__.return_value = None
 
     with (
         patch(

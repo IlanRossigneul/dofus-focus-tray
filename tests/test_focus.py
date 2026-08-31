@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from bridge.calibration import CalibrationController
 from bridge.focus import FocusController

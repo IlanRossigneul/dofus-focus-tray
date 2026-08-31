@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import evdev
 
 from input.discovery import InputDeviceInfo
@@ -8,7 +10,7 @@ from shortcuts.capture import ShortcutCapture
 class FakeKeyboardLayout:
     """Provide deterministic keyboard layout translations for tests."""
 
-    translations = {
+    translations: ClassVar[dict[int, str]] = {
         evdev.ecodes.KEY_D: "d",
         evdev.ecodes.KEY_E: "e",
     }
@@ -34,7 +36,6 @@ def make_device(
         product=0,
         bus=evdev.ecodes.BUS_USB,
         capabilities={},
-        udev_properties={},
     )
 
 

@@ -5,4 +5,4 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$ROOT"
-exec python dofus_focus_tray.py
+exec python dofus_focus_tray.py "$@"

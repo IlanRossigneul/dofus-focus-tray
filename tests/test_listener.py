@@ -1,5 +1,5 @@
-import pytest
 import evdev
+import pytest
 
 from input.classifier import DeviceClass
 from input.events import InputEvent

@@ -1,10 +1,11 @@
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 
 from input.classifier import DeviceClass
 from input.events import read_events_for_classes
-from shortcuts.capture import ShortcutCapture
-from shortcuts.keyboard import KeyboardLayout
-from shortcuts.model import Shortcut
+
+from .capture import ShortcutCapture
+from .keyboard import KeyboardLayout
+from .model import Shortcut
 
 
 class ShortcutListener:
@@ -20,11 +21,11 @@ class ShortcutListener:
         self,
         device_classes: Collection[DeviceClass],
         allowed_mouse_buttons: set[int] | None = None,
-        stop_requested=lambda: False,
+        stop_requested: Callable[[], bool] = lambda: False,
     ) -> Shortcut:
         """Capture the first valid shortcut from the requested device classes."""
 
-        capture = ShortcutCapture(
+        shortcut_capture = ShortcutCapture(
             self._keyboard_layout,
             allowed_mouse_buttons=allowed_mouse_buttons,
         )
@@ -33,7 +34,7 @@ class ShortcutListener:
             device_classes,
             stop_requested=stop_requested,
         ):
-            shortcut = capture.process_event(event)
+            shortcut = shortcut_capture.process_event(event)
 
             if shortcut is not None:
                 return shortcut

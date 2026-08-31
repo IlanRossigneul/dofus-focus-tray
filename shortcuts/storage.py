@@ -1,9 +1,8 @@
 import json
-
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
-from shortcuts.model import Shortcut
+from .model import Shortcut
 
 
 @dataclass

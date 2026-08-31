@@ -1,11 +1,13 @@
+import argparse
 import asyncio
+import logging
 import os
 import threading
 
 from dbus_next.aio import MessageBus
-from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import QApplication
 from KStatusNotifierItem import KStatusNotifierItem
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QApplication
 
 from bridge.bridge import (
     BUS_NAME,
@@ -23,6 +25,10 @@ from ui.menu import MenuWidgets, create_menu
 from ui.shortcuts_window import ShortcutsWindow
 from ui.status_view import StatusView
 from ui.tray_view import create_indicator
+
+from .logging import setup_logger
+
+logger = logging.getLogger(__name__)
 
 
 class ApplicationSignals(QObject):
@@ -58,12 +64,42 @@ class Application:
 
         self.icon_dir = ICON_DIR
 
+    def _parse_args(
+        self,
+        args: list[str],
+    ) -> int:
+        """Parse command-line arguments."""
+        parser = argparse.ArgumentParser()
+
+        group = parser.add_mutually_exclusive_group()
+
+        group.add_argument(
+            "--info",
+            dest="log_level",
+            action="store_const",
+            const=logging.INFO,
+        )
+
+        group.add_argument(
+            "--debug",
+            dest="log_level",
+            action="store_const",
+            const=logging.DEBUG,
+        )
+
+        parsed = parser.parse_args(args)
+
+        return (
+            parsed.log_level
+            if parsed.log_level is not None
+            else logging.INFO
+        )
+
     def _create_status_view(
         self,
         widgets: MenuWidgets,
     ) -> StatusView:
         return StatusView(
-            indicator=self.indicator,
             windows_item=widgets.windows_item,
             order_item=widgets.order_item,
             active_window_item=widgets.active_window_item,
@@ -99,6 +135,7 @@ class Application:
         step: int = 0,
         summary: str | None = None,
     ) -> None:
+        """Notify the user about the current calibration step."""
         if self.notification_manager is None:
             return
 
@@ -137,6 +174,7 @@ class Application:
         self,
         action: str,
     ) -> None:
+        """Dispatch a shortcut action to the D-Bus bridge."""
         if (
             self.bridge is None
             or self.dbus_loop is None
@@ -161,6 +199,7 @@ class Application:
             )
 
     def _run_shortcuts(self) -> None:
+        """Run the shortcut service in its dedicated thread."""
         keyboard_layout = KeyboardLayout()
 
         try:
@@ -211,6 +250,7 @@ class Application:
         )
 
     def _open_shortcuts_window(self) -> None:
+        """Open the shortcut configuration window and pause shortcut handling."""
         if self.shortcut_service is not None:
             self.shortcut_service.set_enabled(False)
             self.shortcut_service.set_mouse_interception_enabled(False)
@@ -266,6 +306,7 @@ class Application:
         )
 
     async def _run_dbus(self) -> None:
+        """Run the D-Bus bridge event loop."""
         self.dbus_loop = asyncio.get_running_loop()
         self.dbus_stop_event = asyncio.Event()
 
@@ -290,10 +331,7 @@ class Application:
 
         await self.bus.request_name(BUS_NAME)
 
-        print(
-            "[DOFUS FOCUS BRIDGE] Started",
-            flush=True,
-        )
+        logger.info("D-Bus bridge started")
 
         await self.dbus_stop_event.wait()
 
@@ -305,20 +343,13 @@ class Application:
         self.dbus_stop_event = None
         self.dbus_loop = None
 
-        print(
-            "[DOFUS FOCUS BRIDGE] Stopped",
-            flush=True,
-        )
+        logger.info("D-Bus bridge stopped")
 
     def _run_dbus_thread(self) -> None:
         try:
             asyncio.run(self._run_dbus())
-        except Exception as error:
-            print(
-                "[DOFUS FOCUS BRIDGE] Thread error:",
-                error,
-                flush=True,
-            )
+        except Exception:
+            logger.exception("D-Bus thread failed")
 
     def _start_dbus(self) -> None:
         self.dbus_thread = threading.Thread(
@@ -328,7 +359,7 @@ class Application:
 
         self.dbus_thread.start()
 
-    def _stop(self) -> None:
+    def _shutdown(self) -> None:
         self.shortcut_stop_event.set()
 
         self._stop_dbus()
@@ -339,7 +370,11 @@ class Application:
         if self.dbus_thread is not None:
             self.dbus_thread.join()
 
-    def run(self) -> int:
+    def run(self, args: list[str]) -> int:
+        """Start the application and run the Qt event loop."""
+        log_level = self._parse_args(args)
+        setup_logger(log_level)
+
         app = QApplication.instance()
 
         if app is None:
@@ -398,6 +433,6 @@ class Application:
 
         exit_code = app.exec()
 
-        self._stop()
+        self._shutdown()
 
         return exit_code

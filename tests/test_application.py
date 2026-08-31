@@ -162,17 +162,3 @@ def test_application_notifies_first_calibration_step_when_active_window_is_alrea
         step=1,
         summary=None,
     )
-
-
-def test_application_notifies_when_new_window_is_detected():
-    application = Application()
-
-    notification_manager = Mock(
-        spec=DofusNotificationManager,
-    )
-
-    application.notification_manager = notification_manager
-
-    application._handle_new_window_detected()
-
-    notification_manager.notify_new_window.assert_called_once_with()

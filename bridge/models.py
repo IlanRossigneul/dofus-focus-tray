@@ -16,7 +16,6 @@ class DofusWindow:
 class DofusFocusState:
     calibrated: bool = False
     calibrating: bool = False
-    monitoring: bool = True
     calibrated_windows: list[DofusWindow] = field(
         default_factory=list,
     )

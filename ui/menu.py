@@ -23,6 +23,7 @@ def create_menu_item(
     icon_path: Path | None = None,
     text: str = "",
 ) -> QAction:
+    """Create a menu action with an optional icon and text."""
     action = QAction()
 
     if icon_path is not None:
@@ -34,36 +35,42 @@ def create_menu_item(
 
 
 def add_separator(menu: QMenu) -> None:
+    """Add a separator to the menu."""
     menu.addSeparator()
 
 
 def create_menu(menu_icon_dir: Path) -> MenuWidgets:
+    """Create the Dofus Focus tray menu and its actions."""
     menu = QMenu()
 
     name_item = create_menu_item(
-        text="Dofus Focus",
+        menu_icon_dir / "dofus.webp",
+        "Dofus Focus",
     )
 
-    name_item.setEnabled(False)
-
     windows_item = create_menu_item(
-        text="Fenêtre : —",
+        menu_icon_dir / "windows.png",
+        "Fenêtre : —",
     )
 
     order_item = create_menu_item(
-        text="Ordre : —",
+        menu_icon_dir / "order.png",
+        "Ordre : —",
     )
 
     active_window_item = create_menu_item(
-        text="Dernière fenêtre active : —",
+        menu_icon_dir / "active_window.png",
+        "Dernière fenêtre active : —",
     )
 
     calibration_item = create_menu_item(
-        text="Calibrer les fenêtres",
+        menu_icon_dir / "calibration.png",
+        "Calibrer les fenêtres",
     )
 
     shortcuts_item = create_menu_item(
-        text="Configurer les raccourcis",
+        menu_icon_dir / "shortcuts.png",
+        "Configurer les raccourcis",
     )
 
     menu.addAction(name_item)

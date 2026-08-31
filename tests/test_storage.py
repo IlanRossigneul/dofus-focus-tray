@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage

@@ -1,20 +1,23 @@
 import asyncio
 import json
+import logging
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Callable
 
-from dbus_next.service import ServiceInterface, method, signal
+from dbus_next.service import ServiceInterface, method
 
-from bridge.calibration import CalibrationController
-from bridge.focus import FocusController
-from bridge.kwin import KWinController
-from bridge.models import DofusFocusState
-from bridge.windows import WindowsController
-
+from .calibration import CalibrationController
+from .focus import FocusController
+from .kwin import KWinController
+from .models import DofusFocusState
+from .windows import WindowsController
 
 BUS_NAME = "org.ilan.DofusFocusBridge"
 OBJECT_PATH = "/org/ilan/DofusFocusBridge"
 INTERFACE_NAME = "org.ilan.DofusFocusBridge"
+
+
+logger = logging.getLogger(__name__)
 
 
 class DofusFocusBridge(ServiceInterface):
@@ -81,11 +84,6 @@ class DofusFocusBridge(ServiceInterface):
             self._calibration.calibrating
             and self._on_calibration_already_selected is not None
         ):
-            print(
-                "[BRIDGE DEBUG] Already selected notification",
-                flush=True,
-            )
-
             self._on_calibration_already_selected()
 
             self._notify_state_changed()
@@ -149,13 +147,9 @@ class DofusFocusBridge(ServiceInterface):
     @method()
     def start_calibration(self) -> None:
         """Start calibration using the currently detected windows."""
-        print(
-            "[BRIDGE DEBUG] start_calibration",
-            f"windows={self._windows.windows}",
-            f"active_window={self._windows.active_window}",
-            f"calibrated_before={self._calibration.calibrated}",
-            f"calibrating_before={self._calibration.calibrating}",
-            flush=True,
+        logger.info(
+            "Starting calibration: windows=%s",
+            self._windows.windows,
         )
 
         self._ignore_next_active_window = False
@@ -166,50 +160,27 @@ class DofusFocusBridge(ServiceInterface):
             self._windows.windows,
         )
 
-        print(
-            "[BRIDGE DEBUG] after calibration.start",
-            f"calibrating={self._calibration.calibrating}",
-            f"calibrated={self._calibration.calibrated}",
-            f"calibrated_windows="
-            f"{self._calibration.calibrated_windows}",
-            f"total_windows={self._calibration.total_windows}",
-            flush=True,
-        )
-
         if (
             self._calibration.calibrating
             and self._windows.active_window
         ):
-            print(
-                "[BRIDGE DEBUG] start_calibration: "
-                "trying automatic selection",
-                f"active_window={self._windows.active_window}",
-                flush=True,
-            )
-
             selected = self._calibration.select_window(
                 self._windows.active_window,
             )
 
-            print(
-                "[BRIDGE DEBUG] start_calibration: "
-                "automatic selection result",
-                f"selected={selected}",
-                f"calibrating={self._calibration.calibrating}",
-                f"calibrated={self._calibration.calibrated}",
-                f"calibrated_windows="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
+            logger.debug(
+                "Automatic calibration selection result: selected=%s, "
+                "calibrating=%s, calibrated=%s, calibrated_windows=%s",
+                selected,
+                self._calibration.calibrating,
+                self._calibration.calibrated,
+                self._calibration.calibrated_windows,
             )
 
         if self._on_calibration_started is not None:
             step = 0
 
-            if self._calibration.calibrating:
-                step = len(
-                    self._calibration.calibrated_windows,
-                )
-            elif self._calibration.calibrated:
+            if self._calibration.calibrating or self._calibration.calibrated:
                 step = len(
                     self._calibration.calibrated_windows,
                 )
@@ -236,30 +207,8 @@ class DofusFocusBridge(ServiceInterface):
             self._calibration.calibrated_windows,
         )
 
-        print(
-            "[BRIDGE DEBUG] update_windows",
-            f"windows={windows}",
-            f"previous_windows={sorted(previous_windows)}",
-            f"previous_calibrating={previous_calibrating}",
-            f"previous_calibrated={previous_calibrated}",
-            f"calibrated_windows_before="
-            f"{previous_calibrated_windows}",
-            flush=True,
-        )
-
         self._windows.update_windows(windows)
         self._calibration.update_windows(windows)
-
-        print(
-            "[BRIDGE DEBUG] after calibration.update_windows",
-            f"calibrating={self._calibration.calibrating}",
-            f"calibrated={self._calibration.calibrated}",
-            f"calibrated_windows="
-            f"{self._calibration.calibrated_windows}",
-            f"total_windows={self._calibration.total_windows}",
-            f"active_window={self._windows.active_window}",
-            flush=True,
-        )
 
         current_windows = set(windows)
 
@@ -273,38 +222,21 @@ class DofusFocusBridge(ServiceInterface):
             }
         )
 
-        print(
-            "[BRIDGE DEBUG] window transition",
-            f"removed_windows={sorted(removed_windows)}",
-            f"calibrated_window_disappeared="
-            f"{calibrated_window_disappeared}",
-            flush=True,
-        )
-
         if (
             self._calibration.calibrating
             and self._windows.active_window
         ):
-            print(
-                "[BRIDGE DEBUG] update_windows: "
-                "trying automatic selection",
-                f"active_window={self._windows.active_window}",
-                flush=True,
-            )
-
             selected = self._calibration.select_window(
                 self._windows.active_window,
             )
 
-            print(
-                "[BRIDGE DEBUG] update_windows: "
-                "automatic selection result",
-                f"selected={selected}",
-                f"calibrating={self._calibration.calibrating}",
-                f"calibrated={self._calibration.calibrated}",
-                f"calibrated_windows="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
+            logger.debug(
+                "Automatic calibration selection result: selected=%s "
+                "calibrating=%s calibrated=%s calibrated_windows=%s",
+                selected,
+                self._calibration.calibrating,
+                self._calibration.calibrated,
+                self._calibration.calibrated_windows,
             )
 
             if selected and self._on_calibration_started is not None:
@@ -322,11 +254,9 @@ class DofusFocusBridge(ServiceInterface):
             new_window_detected
             and previous_calibrated
         ):
-            print(
-                "[BRIDGE DEBUG] New window detected after calibration",
-                f"new_windows="
-                f"{sorted(current_windows - previous_windows)}",
-                flush=True,
+            logger.info(
+                "New window detected after calibration: new_windows=%s",
+                sorted(current_windows - previous_windows),
             )
 
             self._handle_new_window()
@@ -336,11 +266,14 @@ class DofusFocusBridge(ServiceInterface):
             and not self._calibration.calibrating
             and self._calibration.calibrated
         ):
-            print(
-                "[BRIDGE DEBUG] Calibration completed",
-                f"calibrated_windows="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
+            calibrated_windows = ",\n".join(
+                str(window)
+                for window in self._calibration.calibrated_windows
+            )
+
+            logger.info(
+                "Calibration completed: calibrated_windows=[\n%s]",
+                calibrated_windows,
             )
 
             if self._on_calibration_started is not None:
@@ -364,16 +297,12 @@ class DofusFocusBridge(ServiceInterface):
                 self._pending_already_selected_task.cancel()
                 self._pending_already_selected_task = None
 
-                print(
-                    "[BRIDGE DEBUG] Cancelled pending "
-                    "already-selected notification",
-                    flush=True,
+                logger.debug(
+                    "Cancelled pending already-selected notification",
                 )
 
-            print(
-                "[BRIDGE DEBUG] Calibration cancelled",
-                "reason=calibrated window disappeared",
-                flush=True,
+            logger.info(
+                "Calibration cancelled: reason=calibrated window disappeared",
             )
 
             # The active-window update generated by KWin when focus
@@ -382,10 +311,8 @@ class DofusFocusBridge(ServiceInterface):
             if calibrated_window_disappeared:
                 self._ignore_next_active_window = True
 
-                print(
-                    "[BRIDGE DEBUG] Calibration cancellation armed "
-                    "active-window update suppression",
-                    flush=True,
+                logger.debug(
+                    "Calibration cancellation armed active-window update suppression",
                 )
 
             if self._on_calibration_cancelled is not None:
@@ -395,13 +322,6 @@ class DofusFocusBridge(ServiceInterface):
             previous_calibrated
             and self._calibration.calibrating
         ):
-            print(
-                "[BRIDGE DEBUG] Calibration restarted/started",
-                f"calibrated_windows="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
-            )
-
             if self._on_calibration_started is not None:
                 self._on_calibration_started(
                     len(self._windows.windows),
@@ -411,60 +331,21 @@ class DofusFocusBridge(ServiceInterface):
                     self._get_calibration_summary(),
                 )
 
-        print(
-            "[BRIDGE DEBUG] update_windows complete",
-            f"calibrating={self._calibration.calibrating}",
-            f"calibrated={self._calibration.calibrated}",
-            f"calibrated_windows="
-            f"{self._calibration.calibrated_windows}",
-            f"ignore_next_active_window="
-            f"{self._ignore_next_active_window}",
-            flush=True,
-        )
-
         self._notify_state_changed()
 
     @method()
     def update_active_window(self, uuid: "s") -> None:
         """Update the currently active Dofus window."""
-        print(
-            "[BRIDGE DEBUG] update_active_window",
-            f"uuid={uuid}",
-            f"calibrating_before={self._calibration.calibrating}",
-            f"calibrated_before={self._calibration.calibrated}",
-            f"calibrated_windows="
-            f"{self._calibration.calibrated_windows}",
-            f"active_window_before={self._windows.active_window}",
-            f"ignore_next_active_window="
-            f"{self._ignore_next_active_window}",
-            flush=True,
-        )
-
         self._windows.update_active_window(uuid)
 
-        print(
-            "[BRIDGE DEBUG] after windows.update_active_window",
-            f"uuid={uuid}",
-            f"active_window={self._windows.active_window}",
-            f"calibrating={self._calibration.calibrating}",
-            f"calibrated={self._calibration.calibrated}",
-            flush=True,
-        )
-
         if self._ignore_next_active_window:
-            print(
-                "[BRIDGE DEBUG] Ignoring active-window update after "
-                "calibration cancellation",
-                f"uuid={uuid}",
-                flush=True,
+            logger.debug(
+                "Ignoring active-window update after calibration cancellation: "
+                "uuid=%s",
+                uuid,
             )
 
             self._ignore_next_active_window = False
-
-            print(
-                "[BRIDGE DEBUG] Active-window update suppression consumed",
-                flush=True,
-            )
 
             self._notify_state_changed()
             return
@@ -475,28 +356,33 @@ class DofusFocusBridge(ServiceInterface):
                 for window in self._calibration.calibrated_windows
             )
 
-            print(
-                "[BRIDGE DEBUG] calibration selection",
-                f"uuid={uuid}",
-                f"already_selected={already_selected}",
-                f"calibrated_windows_before="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
+            logger.debug(
+                "Calibration window selection: uuid=%s already_selected=%s",
+                uuid,
+                already_selected,
             )
 
             selected = self._calibration.select_window(uuid)
 
-            print(
-                "[BRIDGE DEBUG] selection result",
-                f"selected={selected}",
-                f"calibrating={self._calibration.calibrating}",
-                f"calibrated={self._calibration.calibrated}",
-                f"calibrated_windows_after="
-                f"{self._calibration.calibrated_windows}",
-                flush=True,
+            logger.debug(
+                "Calibration selection result: selected=%s calibrating=%s calibrated=%s",
+                selected,
+                self._calibration.calibrating,
+                self._calibration.calibrated,
             )
 
             if selected:
+                if self._calibration.calibrated:
+                    calibrated_windows = ",\n".join(
+                        str(window)
+                        for window in self._calibration.calibrated_windows
+                    )
+
+                    logger.info(
+                        "Calibration completed: calibrated_windows=[\n%s]",
+                        calibrated_windows,
+                    )
+
                 if self._on_calibration_started is not None:
                     self._on_calibration_started(
                         len(self._windows.windows),
@@ -513,10 +399,9 @@ class DofusFocusBridge(ServiceInterface):
                 already_selected
                 and self._on_calibration_already_selected is not None
             ):
-                print(
-                    "[BRIDGE DEBUG] Delaying already-selected notification",
-                    f"uuid={uuid}",
-                    flush=True,
+                logger.debug(
+                    "Already-selected notification: uuid=%s",
+                    uuid,
                 )
 
                 if self._pending_already_selected_task is not None:
@@ -529,23 +414,15 @@ class DofusFocusBridge(ServiceInterface):
             self._notify_state_changed()
             return
 
-        print(
-            "[BRIDGE DEBUG] update_active_window: "
-            "not calibrating, updating focus",
-            f"uuid={uuid}",
-            flush=True,
-        )
-
         self._focus.update_active_window(uuid)
         self._notify_state_changed()
 
     @method()
     def activate_window(self, uuid: "s") -> None:
         """Activate a Dofus window through KWin."""
-        print(
-            "[BRIDGE DEBUG] activate_window",
-            f"uuid={uuid}",
-            flush=True,
+        logger.debug(
+            "Activating window: uuid=%s",
+            uuid,
         )
 
         asyncio.create_task(
@@ -555,10 +432,9 @@ class DofusFocusBridge(ServiceInterface):
     @method()
     def dofus_focus(self, direction: "i") -> None:
         """Focus the next or previous calibrated Dofus window."""
-        print(
-            "[BRIDGE DEBUG] dofus_focus",
-            f"direction={direction}",
-            flush=True,
+        logger.debug(
+            "Dofus focus: direction=%s",
+            direction,
         )
 
         asyncio.create_task(
@@ -570,18 +446,8 @@ class DofusFocusBridge(ServiceInterface):
         """Focus the next or previous calibrated Dofus window."""
         self.dofus_focus(direction)
 
-    @signal()
-    def windows_updated(
-        self,
-        windows: "as",
-    ) -> "as":
-        return windows
-
     async def close(self) -> None:
         """Close bridge resources."""
-        print(
-            "[BRIDGE DEBUG] close",
-            flush=True,
-        )
+        logger.debug("Closing bridge")
 
         await self._kwin.close()

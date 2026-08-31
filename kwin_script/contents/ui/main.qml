@@ -21,29 +21,23 @@ Item
         onFinished:
         {
             console.log(
-                "[DOFUS FOCUS TRAY] Windows sent to Python bridge"
+                "[DOFUS FOCUS KWIN] Windows sent to Python bridge"
             );
         }
 
         onFailed:
         {
             console.log(
-                "[DOFUS FOCUS TRAY] Failed to send windows to Python bridge"
+                "[DOFUS FOCUS KWIN] Failed to send windows to Python bridge"
             );
         }
     }
 
 
-    function dumpDofusWindows()
+    function updateDofusWindows()
     {
         var windows =
             Windows.getDofusWindows();
-
-
-        console.log(
-            "[DOFUS FOCUS TRAY] Dofus windows:",
-            windows.length
-        );
 
 
         var windowIds = [];
@@ -55,21 +49,12 @@ Item
                 windows[i];
 
 
-            console.log(
-                "[DOFUS FOCUS TRAY]",
-                "index =", i,
-                "| caption =", window.caption,
-                "| resourceClass =", window.resourceClass,
-                "| internalId =", window.internalId
-            );
-
-
             windowIds.push(
                 String(window.internalId)
             );
         }
 
-        // On transforme le tableau en chaîne JSON pour éviter les conflits de types D-Bus
+        // Convert the array to a JSON string to avoid D-Bus type conversion issues.
         updateWindowsCall.arguments = [JSON.stringify(windowIds)];
         updateWindowsCall.call();
     }
@@ -86,15 +71,12 @@ Item
 
         onFinished:
         {
-            console.log(
-                "[DOFUS FOCUS TRAY] Active window sent to Python bridge"
-            );
         }
 
         onFailed:
         {
             console.log(
-                "[DOFUS FOCUS TRAY] Failed to send active window to Python bridge"
+                "[DOFUS FOCUS KWIN] Failed to send active window to Python bridge"
             );
         }
     }
@@ -107,28 +89,13 @@ Item
 
         function onWindowActivated(window)
         {
-            var activeWindow =
-                Windows.getActiveWindow();
-
-
-            console.log(
-                "[DOFUS FOCUS TRAY] Active Dofus window:",
-                activeWindow
-            );
-
-            console.log(
-                "[DOFUS FOCUS TRAY] Sending active window to Python bridge:",
-                activeWindow
-            );
+            var activeWindowId =
+                Windows.getActiveDofusWindowId();
 
             updateActiveWindowCall.arguments =
-                [activeWindow];
+                [activeWindowId];
 
             updateActiveWindowCall.call();
-
-            console.log(
-                "[DOFUS FOCUS TRAY] update_active_window call issued"
-            );
         }
 
 
@@ -138,7 +105,7 @@ Item
                 window.resourceClass === "Dofus.x64"
             )
             {
-                dumpDofusWindows();
+                updateDofusWindows();
             }
         }
 
@@ -149,7 +116,7 @@ Item
                 window.resourceClass === "Dofus.x64"
             )
             {
-                dumpDofusWindows();
+                updateDofusWindows();
             }
         }
     }
@@ -158,16 +125,16 @@ Item
     Component.onCompleted:
     {
         console.log(
-            "[DOFUS FOCUS TRAY] KWin bridge started"
+            "[DOFUS FOCUS KWIN] KWin integration started"
         );
 
 
-        var activeWindow =
-            Windows.getActiveWindow();
+        var activeWindowId =
+            Windows.getActiveDofusWindowId();
 
 
         updateActiveWindowCall.arguments =
-            [activeWindow];
+            [activeWindowId];
 
         updateActiveWindowCall.call();
     }
@@ -176,7 +143,7 @@ Item
     Component.onDestruction:
     {
         console.log(
-            "[DOFUS FOCUS TRAY] KWin bridge stopped"
+            "[DOFUS FOCUS KWIN] KWin integration stopped"
         );
     }
 }

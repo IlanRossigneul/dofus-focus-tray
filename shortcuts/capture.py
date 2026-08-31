@@ -1,8 +1,7 @@
 import evdev
 
-from shortcuts.keyboard import KeyboardLayout
-from shortcuts.model import Shortcut
-
+from .keyboard import KeyboardLayout
+from .model import Shortcut
 
 MODIFIER_KEYS = {
     evdev.ecodes.KEY_LEFTCTRL: "CTRL",

@@ -5,11 +5,10 @@ from collections.abc import Iterator
 
 import evdev
 
-from input.discovery import InputDeviceInfo
-
+from .discovery import InputDeviceInfo
 
 VIRTUAL_MOUSE_NAME = "Dofus Focus Virtual Mouse"
-PHYS_MARKER = "dofus-focus-tray"
+VIRTUAL_MOUSE_PHYS = "dofus-focus-tray"
 
 
 def get_configured_mouse_buttons(
@@ -148,7 +147,7 @@ class MouseInterceptor:
             virtual_device = evdev.UInput.from_device(
                 device,
                 name=VIRTUAL_MOUSE_NAME,
-                phys=PHYS_MARKER,
+                phys=VIRTUAL_MOUSE_PHYS,
             )
 
         except OSError as error:

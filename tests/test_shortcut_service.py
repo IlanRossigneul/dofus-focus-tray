@@ -18,7 +18,6 @@ def make_device(path, name="Test device"):
         product=0,
         bus=0,
         capabilities={},
-        udev_properties={},
     )
 
 
@@ -188,7 +187,7 @@ def test_service_runs_input_monitoring(monkeypatch):
         devices,
         stop_requested,
         device_monitor,
-        get_devices,
+        _,
     ):
         captured_devices.extend(devices)
         return iter(events)

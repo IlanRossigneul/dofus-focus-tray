@@ -1,7 +1,6 @@
-from collections.abc import Callable, Collection
-from dataclasses import dataclass
-from typing import Iterator
 import select
+from collections.abc import Callable, Collection, Iterator
+from dataclasses import dataclass
 
 import evdev
 import pyudev
@@ -243,13 +242,3 @@ def is_keyboard_key(event: InputEvent) -> bool:
         return False
 
     return event.event_code >= evdev.ecodes.KEY_RESERVED
-
-
-def is_user_input(event: InputEvent) -> bool:
-    """Return whether an event represents relevant user input."""
-
-    return (
-        is_mouse_motion(event)
-        or is_mouse_button(event)
-        or is_keyboard_key(event)
-    )

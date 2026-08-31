@@ -1,10 +1,12 @@
 import asyncio
 import copy
+import logging
 import threading
 from collections.abc import Callable, Collection
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt, Signal
+import evdev
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QKeyEvent, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QDialog,
@@ -16,8 +18,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-import evdev
-
 from config.paths import ICON_DIR, SHORTCUTS_FILE
 from input.classifier import DeviceClass
 from shortcuts.capture import ShortcutCaptureRejected
@@ -25,6 +25,8 @@ from shortcuts.keyboard import KeyboardLayout
 from shortcuts.listener import ShortcutListener
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
+
+logger = logging.getLogger(__name__)
 
 
 class ShortcutCaptureWorker:
@@ -47,6 +49,7 @@ class ShortcutCaptureWorker:
         self._stop_requested = threading.Event()
 
     def start(self) -> None:
+        """Start the shortcut capture worker."""
         thread = threading.Thread(
             target=self._run,
             name="ShortcutCaptureThread",
@@ -96,7 +99,7 @@ class ShortcutCaptureWorker:
 
                 self._capture_event.wait()
 
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             if not self._stop_requested.is_set():
                 self._error_callback(error)
 
@@ -121,6 +124,7 @@ class ShortcutButton(QPushButton):
         self,
         enabled: bool,
     ) -> None:
+        """Enable or disable the capture error appearance."""
         self._capture_error = enabled
 
         palette = self.palette()
@@ -245,6 +249,7 @@ class ShortcutsWindow(QDialog):
     def _load_configurations(
         self,
     ) -> dict[str, ShortcutConfiguration]:
+        """Load stored configurations and ensure required actions exist."""
         configurations = self._storage.load()
 
         for name in (
@@ -260,6 +265,7 @@ class ShortcutsWindow(QDialog):
         return copy.deepcopy(configurations)
 
     def _build_ui(self) -> None:
+        """Build the shortcut configuration interface."""
         self.setWindowTitle(
             "Configuration des raccourcis",
         )
@@ -337,8 +343,8 @@ class ShortcutsWindow(QDialog):
 
         layout = QGridLayout(group)
 
-        primary_label = QLabel("Primary")
-        alternate_label = QLabel("Alternate")
+        primary_label = QLabel("Principal")
+        alternate_label = QLabel("Alternatif")
 
         layout.addWidget(
             primary_label,
@@ -381,12 +387,13 @@ class ShortcutsWindow(QDialog):
         configuration_name: str,
         shortcut_type: str,
     ) -> ShortcutButton:
+        """Create and register a shortcut configuration button."""
         button = ShortcutButton()
 
         button.setMinimumWidth(270)
 
         button.clicked.connect(
-            lambda checked=False: self._start_capture(
+            lambda _=False: self._start_capture(
                 configuration_name,
                 shortcut_type,
             ),
@@ -402,6 +409,7 @@ class ShortcutsWindow(QDialog):
         return button
 
     def _update_buttons(self) -> None:
+        """Update shortcut buttons from the current configurations."""
         for (
             configuration_name,
             shortcut_type,
@@ -427,6 +435,7 @@ class ShortcutsWindow(QDialog):
         configuration_name: str,
         shortcut_type: str,
     ) -> None:
+        """Start capturing a shortcut for the selected action."""
         if self._capture_active:
             return
 
@@ -489,6 +498,7 @@ class ShortcutsWindow(QDialog):
         shortcut: Shortcut,
         target: tuple[str, str],
     ) -> bool:
+        """Return whether a shortcut is already assigned elsewhere."""
         for (
             configuration_name,
             configuration,
@@ -515,6 +525,7 @@ class ShortcutsWindow(QDialog):
         self,
         message: str,
     ) -> None:
+        """Display a capture error on the current target button."""
         if self._capture_target is None:
             return
 
@@ -526,6 +537,7 @@ class ShortcutsWindow(QDialog):
         button.set_capture_error(True)
 
     def _finish_capture(self) -> None:
+        """Stop capture and restore the normal window state."""
         if self._duplicate_timer.isActive():
             self._duplicate_timer.stop()
 
@@ -546,6 +558,7 @@ class ShortcutsWindow(QDialog):
         self._update_buttons()
 
     def _cancel_capture(self) -> None:
+        """Cancel the current capture and restore the original shortcut."""
         if self._capture_target is None:
             return
 
@@ -565,7 +578,8 @@ class ShortcutsWindow(QDialog):
 
         self._finish_capture()
 
-    def _clear_captured_shortcut(self) -> None:
+    def _clear_target_shortcut(self) -> None:
+        """Clear the shortcut assigned to the current capture target."""
         if self._capture_target is None:
             return
 
@@ -589,6 +603,7 @@ class ShortcutsWindow(QDialog):
         self,
         shortcut: Shortcut,
     ) -> None:
+        """Handle a captured shortcut, including cancellation and duplicates."""
         if self._capture_target is None:
             return
 
@@ -597,7 +612,7 @@ class ShortcutsWindow(QDialog):
             return
 
         if shortcut.trigger == "BACKSPACE":
-            self._clear_captured_shortcut()
+            self._clear_target_shortcut()
             return
 
         if self._is_shortcut_duplicate(
@@ -630,6 +645,7 @@ class ShortcutsWindow(QDialog):
         self,
         _trigger: str,
     ) -> None:
+        """Display an error when a forbidden mouse button is captured."""
         if self._capture_target is None:
             return
 
@@ -649,15 +665,16 @@ class ShortcutsWindow(QDialog):
         self,
         error: Exception,
     ) -> None:
+        """Handle an unexpected error raised during shortcut capture."""
         self._finish_capture()
 
-        print(
-            "[SHORTCUTS WINDOW] Shortcut capture failed:",
+        logger.error(
+            "Shortcut capture failed: %s",
             error,
-            flush=True,
         )
 
     def _save(self) -> None:
+        """Save the current shortcut configuration and close the window."""
         if self._capture_active:
             return
 
@@ -729,6 +746,7 @@ class ShortcutsWindow(QDialog):
         self._update_buttons()
 
     def closeEvent(self, event) -> None:
+        """Handle window closing and prevent it during shortcut capture."""
         if self._capture_active:
             event.ignore()
             return

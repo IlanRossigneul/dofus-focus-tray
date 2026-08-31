@@ -1,11 +1,9 @@
 import ctypes
 from ctypes import c_char_p, c_int, c_uint32, c_void_p
-
 from dataclasses import dataclass
 
 from dbus_next.aio import MessageBus
 from dbus_next.constants import BusType
-
 
 KDE_KEYBOARD_BUS = "org.kde.keyboard"
 KDE_KEYBOARD_PATH = "/Layouts"
@@ -14,7 +12,6 @@ KDE_KEYBOARD_INTERFACE = "org.kde.KeyboardLayouts"
 XKB_KEYCODE_OFFSET = 8
 XKB_CONTEXT_NO_FLAGS = 0
 XKB_KEYMAP_COMPILE_NO_FLAGS = 0
-XKB_STATE_COMPONENTS_ALL = 0xFFFFFFFF
 XKB_KEYSYM_NO_SYMBOL = 0
 
 
@@ -40,7 +37,7 @@ class XkbRuleNames(ctypes.Structure):
 class KeyboardLayout:
     """Provide access to the active KDE keyboard layout."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._bus = None
         self._interface = None
         self._layout_index = None

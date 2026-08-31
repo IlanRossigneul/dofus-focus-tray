@@ -1,4 +1,4 @@
-from bridge.models import DofusWindow
+from .models import DofusWindow
 
 
 class CalibrationController:

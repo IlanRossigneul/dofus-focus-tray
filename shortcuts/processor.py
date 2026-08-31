@@ -1,9 +1,10 @@
 import evdev
 
 from input.events import InputEvent
-from shortcuts.capture import get_modifier, get_trigger
-from shortcuts.keyboard import KeyboardLayout
-from shortcuts.model import Shortcut
+
+from .capture import get_modifier, get_trigger
+from .keyboard import KeyboardLayout
+from .model import Shortcut
 
 
 class ShortcutProcessor:

@@ -11,7 +11,7 @@ echo "=================================="
 
 echo
 echo "Unloading script from KWin memory..."
-# 1. On force KWin à décharger l'ancien code QML/JS de sa mémoire vive
+# Force KWin to unload the previous QML/JS code from memory
 qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript "$PLUGIN_ID" || true
 
 echo
@@ -54,7 +54,7 @@ sleep 3
 
 echo
 echo "Forcing KWin Scripting engine to restart..."
-# 2. On demande au gestionnaire de script de KWin de scanner à nouveau et de démarrer
+# Ask the KWin scripting manager to rescan and start the script
 qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.start
 
 echo
