@@ -177,6 +177,17 @@ class DofusFocusBridge(ServiceInterface):
                 self._calibration.calibrated_windows,
             )
 
+        if self._calibration.calibrated:
+            calibrated_windows = ",\n".join(
+                str(window)
+                for window in self._calibration.calibrated_windows
+            )
+
+            logger.info(
+                "Calibration completed: calibrated_windows=[\n%s]",
+                calibrated_windows,
+            )
+
         if self._on_calibration_started is not None:
             step = 0
 
