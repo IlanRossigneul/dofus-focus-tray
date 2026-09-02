@@ -12,9 +12,9 @@ from .kwin import KWinController
 from .models import DofusFocusState
 from .windows import WindowsController
 
-BUS_NAME = "org.ilan.DofusFocusBridge"
-OBJECT_PATH = "/org/ilan/DofusFocusBridge"
-INTERFACE_NAME = "org.ilan.DofusFocusBridge"
+BUS_NAME = "org.dofus.DofusFocusBridge"
+OBJECT_PATH = "/org/dofus/DofusFocusBridge"
+INTERFACE_NAME = "org.dofus.DofusFocusBridge"
 
 
 logger = logging.getLogger(__name__)

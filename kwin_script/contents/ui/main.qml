@@ -13,9 +13,9 @@ Item
     {
         id: updateWindowsCall
 
-        service: "org.ilan.DofusFocusBridge"
-        path: "/org/ilan/DofusFocusBridge"
-        dbusInterface: "org.ilan.DofusFocusBridge"
+        service: "org.dofus.DofusFocusBridge"
+        path: "/org/dofus/DofusFocusBridge"
+        dbusInterface: "org.dofus.DofusFocusBridge"
         method: "update_windows"
 
         onFinished:
@@ -64,9 +64,9 @@ Item
     {
         id: updateActiveWindowCall
 
-        service: "org.ilan.DofusFocusBridge"
-        path: "/org/ilan/DofusFocusBridge"
-        dbusInterface: "org.ilan.DofusFocusBridge"
+        service: "org.dofus.DofusFocusBridge"
+        path: "/org/dofus/DofusFocusBridge"
+        dbusInterface: "org.dofus.DofusFocusBridge"
         method: "update_active_window"
 
         onFinished:
