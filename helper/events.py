@@ -45,24 +45,6 @@ class InputEventReader:
 
         input_device.close()
 
-    def sync_devices(
-        self,
-        current_devices: list[HelperDevice],
-    ) -> None:
-        """Synchronize open devices with the current device list."""
-
-        current_ids = {
-            device.device_id
-            for device in current_devices
-        }
-
-        for device_id in list(self._input_devices):
-            if device_id not in current_ids:
-                self.remove_device(device_id)
-
-        for device in current_devices:
-            self.add_device(device)
-
     def read_ready(
         self,
         ready_fds: list[int],

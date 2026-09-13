@@ -134,7 +134,6 @@ def test_connect_performs_handshake(tmp_path):
 
         server_thread.join()
 
-        assert client.is_connected()
         assert client.is_ready()
     finally:
         if client is not None:
@@ -159,7 +158,6 @@ def test_connect_fails_when_helper_is_unavailable(tmp_path):
     ):
         client.connect()
 
-    assert not client.is_connected()
     assert not client.is_ready()
 
 
@@ -197,7 +195,6 @@ def test_connect_fails_when_handshake_times_out(
         ):
             client.connect()
 
-        assert not client.is_connected()
         assert not client.is_ready()
     finally:
         client.disconnect()
@@ -910,7 +907,6 @@ def test_receive_loop_rejects_oversized_incomplete_message(
         client.connect()
 
         assert disconnect_event.wait(1.0)
-        assert not client.is_connected()
         assert not client.is_ready()
 
         server_thread.join()
@@ -959,7 +955,6 @@ def test_receive_loop_rejects_invalid_event(
         client.connect()
 
         assert disconnect_event.wait(1.0)
-        assert not client.is_connected()
         assert not client.is_ready()
 
         server_thread.join()
@@ -1067,7 +1062,6 @@ def test_unexpected_disconnect_resets_state(tmp_path):
 
         assert disconnect_event.wait(1.0)
 
-        assert not client.is_connected()
         assert not client.is_ready()
     finally:
         client.disconnect()
@@ -1086,7 +1080,6 @@ def test_disconnect_is_idempotent(tmp_path):
     client.disconnect()
     client.disconnect()
 
-    assert not client.is_connected()
     assert not client.is_ready()
 
 
@@ -1117,7 +1110,6 @@ def test_disconnect_clears_ready_state_before_thread_join(
 
         client.disconnect()
 
-        assert not client.is_connected()
         assert not client.is_ready()
 
         server_thread.join()

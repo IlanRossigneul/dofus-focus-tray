@@ -62,7 +62,6 @@ def test_keyboard_input_without_modifier_is_processed():
     )
 
     assert str(shortcut) == "D"
-    assert capture.completed is True
 
 
 def test_keyboard_shortcut_is_captured():
@@ -77,7 +76,6 @@ def test_keyboard_shortcut_is_captured():
     )
 
     assert str(shortcut) == "CTRL + D"
-    assert capture.completed is True
 
 
 def test_multiple_modifiers_are_captured():
@@ -154,7 +152,6 @@ def test_mouse_button_is_captured():
     )
 
     assert str(shortcut) == "BTN_SIDE"
-    assert capture.completed is True
 
 
 def test_mouse_motion_is_ignored():
@@ -167,7 +164,6 @@ def test_mouse_motion_is_ignored():
     )
 
     assert capture.process_event(event) is None
-    assert capture.completed is False
 
 
 def test_key_repeat_is_ignored():
@@ -180,8 +176,6 @@ def test_key_repeat_is_ignored():
             frozenset({"CTRL"}),
         )
     ) is None
-
-    assert capture.completed is False
 
 
 def test_first_valid_trigger_completes_capture():
@@ -196,7 +190,6 @@ def test_first_valid_trigger_completes_capture():
     )
 
     assert str(shortcut) == "CTRL + D"
-    assert capture.completed is True
 
     assert capture.process_event(
         key_event(

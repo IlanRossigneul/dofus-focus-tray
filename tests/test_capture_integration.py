@@ -50,7 +50,6 @@ def test_keyboard_input_event_is_captured():
     )
 
     assert str(shortcut) == "CTRL + D"
-    assert capture.completed is True
 
 
 def test_keyboard_input_event_without_modifier_is_processed():
@@ -65,7 +64,6 @@ def test_keyboard_input_event_without_modifier_is_processed():
     )
 
     assert str(shortcut) == "D"
-    assert capture.completed is True
 
 
 def test_mouse_button_input_event_is_captured():
@@ -80,7 +78,6 @@ def test_mouse_button_input_event_is_captured():
     )
 
     assert str(shortcut) == "BTN_SIDE"
-    assert capture.completed is True
 
 
 def test_mouse_motion_input_event_is_ignored():
@@ -93,7 +90,6 @@ def test_mouse_motion_input_event_is_ignored():
     )
 
     assert capture.process_event(event) is None
-    assert capture.completed is False
 
 
 def test_unknown_keyboard_input_event_is_ignored():
@@ -108,7 +104,6 @@ def test_unknown_keyboard_input_event_is_ignored():
     )
 
     assert shortcut is None
-    assert capture.completed is False
 
 
 def test_events_are_ignored_after_capture_is_completed():
@@ -124,7 +119,6 @@ def test_events_are_ignored_after_capture_is_completed():
     )
 
     assert str(shortcut) == "CTRL + D"
-    assert capture.completed is True
 
     assert capture.process_event(
         make_event(

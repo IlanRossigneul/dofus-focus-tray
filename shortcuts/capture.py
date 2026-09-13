@@ -140,12 +140,6 @@ class ShortcutCapture:
         )
         self._completed = False
 
-    @property
-    def completed(self) -> bool:
-        """Return whether a valid shortcut has been captured."""
-
-        return self._completed
-
     def process_event(self, event) -> Shortcut | None:
         """Process one event and return the first valid shortcut."""
 

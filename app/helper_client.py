@@ -206,11 +206,6 @@ class HelperClient:
             configuration=configuration,
         )
 
-    def is_connected(self) -> bool:
-        """Return whether the helper is connected."""
-        with self._state_lock:
-            return self._connected
-
     def is_ready(self) -> bool:
         """Return whether the helper handshake has completed."""
         with self._state_lock:
