@@ -1,14 +1,35 @@
-import threading
-
 from PySide6.QtWidgets import QApplication
 
-from input.classifier import DeviceClass
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
-from ui.shortcuts_window import (
-    ShortcutCaptureWorker,
-    ShortcutsWindow,
-)
+from ui.shortcuts_window import ShortcutsWindow
+
+
+class FakeShortcutService:
+    """Provide a controllable shortcut service for window tests."""
+
+    def __init__(self) -> None:
+        self.start_capture_calls = []
+        self.stop_capture_calls = 0
+
+    def start_capture(
+        self,
+        allowed_mouse_buttons=None,
+        callback=None,
+        error_callback=None,
+        rejected_callback=None,
+    ) -> None:
+        self.start_capture_calls.append(
+            {
+                "allowed_mouse_buttons": allowed_mouse_buttons,
+                "callback": callback,
+                "error_callback": error_callback,
+                "rejected_callback": rejected_callback,
+            }
+        )
+
+    def stop_capture(self) -> None:
+        self.stop_capture_calls += 1
 
 
 def get_qapplication():
@@ -23,9 +44,16 @@ def get_qapplication():
 def make_window(tmp_path):
     get_qapplication()
 
-    return ShortcutsWindow(
+    service = FakeShortcutService()
+
+    window = ShortcutsWindow(
+        shortcut_service=service,
         storage_path=tmp_path / "shortcuts.json",
     )
+
+    window._test_shortcut_service = service
+
+    return window
 
 
 def start_fake_capture(
@@ -159,31 +187,53 @@ def test_existing_shortcuts_are_loaded_and_displayed(
     window.close()
 
 
-def test_starting_capture_disables_all_controls_except_target(
+def test_starting_calibration_capture_uses_no_mouse_buttons(
     tmp_path,
-    monkeypatch,
 ):
     window = make_window(tmp_path)
+    service = window._test_shortcut_service
 
-    class FakeWorker:
-        def __init__(
-            self,
-            device_classes,
-            allowed_mouse_buttons,
-            callback,
-            error_callback,
-            rejected_callback,
-        ):
-            self.callback = callback
-            self.error_callback = error_callback
-
-        def start(self):
-            pass
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.ShortcutCaptureWorker",
-        FakeWorker,
+    window._start_capture(
+        "calibration",
+        "primary",
     )
+
+    assert len(service.start_capture_calls) == 1
+
+    call = service.start_capture_calls[0]
+
+    assert call["allowed_mouse_buttons"] == set()
+    assert call["callback"] == window.shortcut_captured.emit
+    assert call["error_callback"] == window.capture_failed.emit
+    assert call["rejected_callback"] == window.capture_rejected.emit
+
+    window.close()
+
+
+def test_starting_regular_capture_allows_configured_mouse_buttons(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+    service = window._test_shortcut_service
+
+    window._start_capture(
+        "next",
+        "primary",
+    )
+
+    assert len(service.start_capture_calls) == 1
+
+    call = service.start_capture_calls[0]
+
+    assert call["allowed_mouse_buttons"] is None
+
+    window.close()
+
+
+def test_starting_capture_disables_all_controls_except_target(
+    tmp_path,
+):
+    window = make_window(tmp_path)
 
     target = window._buttons[
         ("calibration", "primary")
@@ -271,6 +321,29 @@ def test_capture_result_updates_targeted_shortcut(
 
     assert window._capture_active is False
     assert window._capture_target is None
+
+    window.close()
+
+
+def test_capture_result_stops_capture_service(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+    service = window._test_shortcut_service
+
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
+    )
+
+    window._handle_shortcut_captured(
+        Shortcut(
+            trigger="D",
+            modifiers=frozenset({"CTRL"}),
+        ),
+    )
+
+    assert service.stop_capture_calls == 1
 
     window.close()
 
@@ -433,6 +506,7 @@ def test_primary_and_alternate_are_independent(
 
     primary = Shortcut(
         trigger="D",
+        modifiers=frozenset({"CTRL"}),
     )
 
     alternate = Shortcut(
@@ -475,7 +549,7 @@ def test_primary_and_alternate_are_independent(
         window._buttons[
             ("calibration", "primary")
         ].text()
-        == "D"
+        == "CTRL + D"
     )
 
     assert (
@@ -505,7 +579,10 @@ def test_capture_result_reenables_all_controls(
     window._quit_button.setEnabled(False)
 
     window._handle_shortcut_captured(
-        Shortcut("D"),
+        Shortcut(
+            trigger="D",
+            modifiers=frozenset({"CTRL"}),
+        ),
     )
 
     assert window._capture_active is False
@@ -578,6 +655,26 @@ def test_capture_failure_restores_current_configuration(
         assert button.isEnabled() is True
 
     assert "Shortcut capture failed" in caplog.text
+
+    window.close()
+
+
+def test_capture_failure_stops_capture_service(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+    service = window._test_shortcut_service
+
+    start_fake_capture(
+        window,
+        ("calibration", "primary"),
+    )
+
+    window._handle_capture_failed(
+        RuntimeError("capture failed"),
+    )
+
+    assert service.stop_capture_calls == 1
 
     window.close()
 
@@ -759,30 +856,9 @@ def test_close_is_allowed_after_capture_finishes(
 
 def test_second_capture_is_ignored_while_capture_is_active(
     tmp_path,
-    monkeypatch,
 ):
     window = make_window(tmp_path)
-
-    starts = []
-
-    class FakeWorker:
-        def __init__(
-            self,
-            device_classes,
-            allowed_mouse_buttons,
-            callback,
-            error_callback,
-            rejected_callback,
-        ):
-            pass
-
-        def start(self):
-            starts.append(True)
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.ShortcutCaptureWorker",
-        FakeWorker,
-    )
+    service = window._test_shortcut_service
 
     window._start_capture(
         "calibration",
@@ -794,7 +870,7 @@ def test_second_capture_is_ignored_while_capture_is_active(
         "alternate",
     )
 
-    assert len(starts) == 1
+    assert len(service.start_capture_calls) == 1
 
     assert window._capture_target == (
         "calibration",
@@ -803,121 +879,6 @@ def test_second_capture_is_ignored_while_capture_is_active(
 
     window._capture_active = False
     window.close()
-
-
-def test_capture_worker_runs_capture_outside_gui_thread(
-    monkeypatch,
-):
-    captured_threads = []
-    finished = threading.Event()
-
-    class FakeKeyboardLayout:
-        async def connect(self):
-            pass
-
-        async def close(self):
-            pass
-
-    def fake_listener_capture(
-        self,
-        device_classes,
-        allowed_mouse_buttons=None,
-        stop_requested=lambda: False,
-    ):
-        captured_threads.append(
-            threading.current_thread().name,
-        )
-        finished.set()
-
-        return Shortcut("D")
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.KeyboardLayout",
-        FakeKeyboardLayout,
-    )
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.ShortcutListener.capture",
-        fake_listener_capture,
-    )
-
-    worker = ShortcutCaptureWorker(
-        device_classes=(
-            DeviceClass.KEYBOARD,
-        ),
-        allowed_mouse_buttons=set(),
-        callback=lambda shortcut: None,
-        error_callback=lambda error: None,
-        rejected_callback=lambda trigger: None,
-    )
-
-    worker.start()
-
-    assert finished.wait(timeout=1)
-    assert captured_threads == [
-        "ShortcutCaptureThread",
-    ]
-
-    worker.stop()
-
-
-def test_capture_worker_stops_without_callback_or_error(
-    monkeypatch,
-):
-    callback_called = threading.Event()
-    error_called = threading.Event()
-    capture_started = threading.Event()
-
-    class FakeKeyboardLayout:
-        async def connect(self):
-            pass
-
-        async def close(self):
-            pass
-
-    def fake_listener_capture(
-        self,
-        device_classes,
-        allowed_mouse_buttons=None,
-        stop_requested=lambda: False,
-    ):
-        capture_started.set()
-
-        while not stop_requested():
-            pass
-
-        raise RuntimeError(
-            "Input event stream ended before a shortcut was captured."
-        )
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.KeyboardLayout",
-        FakeKeyboardLayout,
-    )
-
-    monkeypatch.setattr(
-        "ui.shortcuts_window.ShortcutListener.capture",
-        fake_listener_capture,
-    )
-
-    worker = ShortcutCaptureWorker(
-        device_classes=(
-            DeviceClass.KEYBOARD,
-        ),
-        allowed_mouse_buttons=set(),
-        callback=lambda shortcut: callback_called.set(),
-        error_callback=lambda error: error_called.set(),
-        rejected_callback=lambda trigger: None,
-    )
-
-    worker.start()
-
-    assert capture_started.wait(timeout=1)
-
-    worker.stop()
-
-    assert not callback_called.is_set()
-    assert not error_called.is_set()
 
 
 def test_duplicate_shortcut_shows_capture_error(
@@ -1298,6 +1259,26 @@ def test_backspace_clears_capture_error(
     )
 
     assert window._buttons[target].text() == "—"
+    assert window._capture_active is False
+    assert window._capture_target is None
+
+    window.close()
+
+
+def test_reload_stops_active_capture(
+    tmp_path,
+):
+    window = make_window(tmp_path)
+    service = window._test_shortcut_service
+
+    window._start_capture(
+        "calibration",
+        "primary",
+    )
+
+    window.reload()
+
+    assert service.stop_capture_calls == 1
     assert window._capture_active is False
     assert window._capture_target is None
 

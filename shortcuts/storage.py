@@ -28,17 +28,29 @@ class ShortcutStorage:
         with self._path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
-        return {
-            name: ShortcutConfiguration(
+        configurations = {}
+
+        for name, configuration in data.items():
+            if not isinstance(configuration, dict):
+                raise TypeError(
+                    f"Invalid configuration for action: {name}.",
+                )
+
+            if set(configuration) != {"primary", "alternate"}:
+                raise ValueError(
+                    f"Invalid shortcut slots for action: {name}.",
+                )
+
+            configurations[name] = ShortcutConfiguration(
                 primary=self._deserialize_shortcut(
-                    configuration.get("primary"),
+                    configuration["primary"],
                 ),
                 alternate=self._deserialize_shortcut(
-                    configuration.get("alternate"),
+                    configuration["alternate"],
                 ),
             )
-            for name, configuration in data.items()
-        }
+
+        return configurations
 
     def save(
         self,

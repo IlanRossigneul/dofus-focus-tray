@@ -32,8 +32,9 @@ class Shortcut:
         order = {
             "CTRL": 0,
             "ALT": 1,
-            "SHIFT": 2,
-            "META": 3,
+            "ALTGR": 2,
+            "SHIFT": 3,
+            "META": 4,
         }
 
         return order.get(modifier, 99)

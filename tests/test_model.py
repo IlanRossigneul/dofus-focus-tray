@@ -26,3 +26,14 @@ def test_shortcut_accepts_mouse_trigger():
 def test_shortcut_rejects_trigger_used_as_modifier():
     with pytest.raises(ValueError):
         Shortcut("ctrl", {"ctrl"})
+
+
+def test_shortcut_string_orders_altgr_modifier():
+    shortcut = Shortcut(
+        "d",
+        {"shift", "meta", "ctrl", "alt", "altgr"},
+    )
+
+    assert str(shortcut) == (
+        "CTRL + ALT + ALTGR + SHIFT + META + D"
+    )

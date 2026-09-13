@@ -1,8 +1,18 @@
+import json
+import socket
+import threading
+import time
+
 import evdev
 
-from input.classifier import Classification, DeviceClass
+from app.helper_client import HelperClient, HelperClientError
+from helper.protocol import (
+    EVENT_MOUSE_INTERCEPTION_STARTED,
+    EVENT_MOUSE_INTERCEPTION_STOPPED,
+    EVENT_MOUSE_SELECTED,
+    EVENT_SHORTCUT,
+)
 from input.discovery import InputDeviceInfo
-from input.events import InputEvent
 from shortcuts.model import Shortcut
 from shortcuts.service import ShortcutService
 from shortcuts.storage import ShortcutConfiguration
@@ -18,16 +28,6 @@ def make_device(path, name="Test device"):
         product=0,
         bus=0,
         capabilities={},
-    )
-
-
-def make_event(device, event_code, value=1):
-    return InputEvent(
-        device=device,
-        event_type=evdev.ecodes.EV_KEY,
-        event_code=event_code,
-        value=value,
-        timestamp=0.0,
     )
 
 
@@ -62,28 +62,27 @@ def make_configuration():
     }
 
 
-def test_service_executes_matching_action():
-    next_shortcut = make_shortcut("N", ["META"])
-
-    configuration = make_configuration()
-
+def test_service_executes_helper_shortcut_action():
     executed_actions = []
 
     service = ShortcutService(
         keyboard_layout=FakeKeyboardLayout(),
-        configuration=configuration,
+        configuration=make_configuration(),
         on_action=executed_actions.append,
         stop_requested=lambda: False,
     )
 
-    service._handle_shortcut(next_shortcut)
+    service._handle_helper_shortcut(
+        {
+            "type": EVENT_SHORTCUT,
+            "action": "next",
+        },
+    )
 
     assert executed_actions == ["next"]
 
 
-def test_service_ignores_unconfigured_shortcut():
-    shortcut = make_shortcut("X")
-
+def test_service_executes_multiple_helper_shortcut_actions():
     executed_actions = []
 
     service = ShortcutService(
@@ -93,26 +92,18 @@ def test_service_ignores_unconfigured_shortcut():
         stop_requested=lambda: False,
     )
 
-    service._handle_shortcut(shortcut)
-
-    assert executed_actions == []
-
-
-def test_service_executes_multiple_actions():
-    next_shortcut = make_shortcut("N", ["META"])
-    previous_shortcut = make_shortcut("P", ["META"])
-
-    executed_actions = []
-
-    service = ShortcutService(
-        keyboard_layout=FakeKeyboardLayout(),
-        configuration=make_configuration(),
-        on_action=executed_actions.append,
-        stop_requested=lambda: False,
+    service._handle_helper_shortcut(
+        {
+            "type": EVENT_SHORTCUT,
+            "action": "next",
+        },
     )
-
-    service._handle_shortcut(next_shortcut)
-    service._handle_shortcut(previous_shortcut)
+    service._handle_helper_shortcut(
+        {
+            "type": EVENT_SHORTCUT,
+            "action": "previous",
+        },
+    )
 
     assert executed_actions == [
         "next",
@@ -120,94 +111,8 @@ def test_service_executes_multiple_actions():
     ]
 
 
-def test_service_updates_configuration():
-    old_shortcut = make_shortcut("N", ["META"])
-    new_shortcut = make_shortcut("P", ["META"])
-
-    old_configuration = make_configuration()
-    old_configuration["next"] = ShortcutConfiguration(
-        primary=old_shortcut,
-    )
-
-    new_configuration = {
-        "calibration": ShortcutConfiguration(
-            primary=make_shortcut("F1"),
-        ),
-        "next": ShortcutConfiguration(),
-        "previous": ShortcutConfiguration(
-            primary=new_shortcut,
-        ),
-    }
-
-    executed_actions = []
-
-    service = ShortcutService(
-        keyboard_layout=FakeKeyboardLayout(),
-        configuration=old_configuration,
-        on_action=executed_actions.append,
-        stop_requested=lambda: False,
-    )
-
-    service.update_configuration(
-        new_configuration,
-    )
-
-    service._handle_shortcut(old_shortcut)
-    service._handle_shortcut(new_shortcut)
-
-    assert executed_actions == ["previous"]
-
-
-def test_service_runs_input_monitoring(monkeypatch):
-    keyboard = make_device(
-        "/dev/input/event0",
-        "Keyboard",
-    )
-    gamepad = make_device(
-        "/dev/input/event1",
-        "Gamepad",
-    )
-
-    events = [
-        make_event(
-            keyboard,
-            evdev.ecodes.KEY_N,
-        ),
-    ]
-
-    captured_devices = []
-
-    def fake_classify_device(device):
-        if device is keyboard:
-            return Classification(DeviceClass.KEYBOARD, 100)
-
-        return Classification(DeviceClass.GAMEPAD, 100)
-
-    def fake_read_events(
-        devices,
-        stop_requested,
-        device_monitor,
-        _,
-    ):
-        captured_devices.extend(devices)
-        return iter(events)
-
-    monkeypatch.setattr(
-        "shortcuts.service.discover_input_devices",
-        lambda: [keyboard, gamepad],
-    )
-
-    monkeypatch.setattr(
-        "shortcuts.service.classify_device",
-        fake_classify_device,
-    )
-
-    monkeypatch.setattr(
-        "shortcuts.service.read_events_from_devices",
-        fake_read_events,
-    )
-
-    executed_actions = []
+def test_service_processes_helper_keyboard_event(monkeypatch):
+    captured_events = []
 
     service = ShortcutService(
         keyboard_layout=FakeKeyboardLayout(),
@@ -216,15 +121,925 @@ def test_service_runs_input_monitoring(monkeypatch):
                 primary=make_shortcut("N"),
             ),
         },
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_process_capture_event",
+        captured_events.append,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": "keyboard_event",
+            "device_id": "keyboard-1",
+            "code": evdev.ecodes.KEY_N,
+            "value": 1,
+            "timestamp": 123.456,
+        },
+    )
+
+    assert len(captured_events) == 1
+
+    event = captured_events[0]
+
+    assert event.event_type == evdev.ecodes.EV_KEY
+    assert event.event_code == evdev.ecodes.KEY_N
+    assert event.value == 1
+    assert event.timestamp == 123.456
+
+
+def test_service_processes_helper_keyboard_event_from_socket(
+    monkeypatch,
+    tmp_path,
+):
+    socket_path = tmp_path / "helper.sock"
+    server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server_socket.bind(str(socket_path))
+    server_socket.listen(1)
+
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={
+            "next": ShortcutConfiguration(
+                primary=make_shortcut("N"),
+            ),
+        },
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    captured_shortcuts = []
+
+    helper_client = HelperClient(
+        socket_path=str(socket_path),
+        on_event=service._handle_helper_event,
+        on_disconnect=service._handle_helper_disconnect,
+    )
+    service._helper_client = helper_client
+
+    client_socket = None
+
+    def fake_helper():
+        nonlocal client_socket
+
+        client_socket, _ = server_socket.accept()
+
+        client_socket.sendall(
+            b'{"type":"hello_ack","protocol":1}\n',
+        )
+
+        buffer = bytearray()
+
+        while True:
+            separator = buffer.find(b"\n")
+            if separator == -1:
+                buffer.extend(client_socket.recv(4096))
+                continue
+
+            line = bytes(buffer[:separator])
+            del buffer[:separator + 1]
+
+            message = json.loads(line)
+
+            if message["type"] == "start_capture":
+                break
+
+        client_socket.sendall(
+            (
+                '{"type":"keyboard_event",'
+                '"device_id":"keyboard-1",'
+                '"code":'
+                f"{evdev.ecodes.KEY_N},"
+                '"value":1,'
+                '"timestamp":123.456}\n'
+            ).encode(),
+        )
+
+    server_thread = threading.Thread(target=fake_helper)
+    server_thread.start()
+
+    try:
+        helper_client.connect()
+
+        service.start_capture(
+            allowed_mouse_buttons=None,
+            callback=captured_shortcuts.append,
+            error_callback=lambda error: None,
+            rejected_callback=lambda _reason: None,
+        )
+
+        server_thread.join(timeout=1)
+
+        for _ in range(100):
+            if captured_shortcuts == [make_shortcut("N")]:
+                break
+            time.sleep(0.01)
+
+        assert captured_shortcuts == [make_shortcut("N")]
+    finally:
+        helper_client.disconnect()
+
+        if client_socket is not None:
+            client_socket.close()
+
+        server_socket.close()
+
+    assert not server_thread.is_alive()
+
+
+def test_service_processes_helper_mouse_button_event(monkeypatch):
+    captured_events = []
+
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={
+            "next": ShortcutConfiguration(
+                primary=make_shortcut("BTN_SIDE"),
+            ),
+        },
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_process_capture_event",
+        captured_events.append,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": "mouse_button_event",
+            "device_id": "mouse-1",
+            "code": evdev.ecodes.BTN_SIDE,
+            "value": 1,
+            "timestamp": 123.456,
+        },
+    )
+
+    assert len(captured_events) == 1
+
+    event = captured_events[0]
+
+    assert event.event_type == evdev.ecodes.EV_KEY
+    assert event.event_code == evdev.ecodes.BTN_SIDE
+    assert event.value == 1
+    assert event.timestamp == 123.456
+
+
+def test_service_processes_helper_mouse_extra_button_event(monkeypatch):
+    captured_events = []
+
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={
+            "previous": ShortcutConfiguration(
+                primary=make_shortcut("BTN_EXTRA"),
+            ),
+        },
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_process_capture_event",
+        captured_events.append,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": "mouse_button_event",
+            "device_id": "mouse-1",
+            "code": evdev.ecodes.BTN_EXTRA,
+            "value": 1,
+            "timestamp": 123.456,
+        },
+    )
+
+    assert len(captured_events) == 1
+
+    event = captured_events[0]
+
+    assert event.event_type == evdev.ecodes.EV_KEY
+    assert event.event_code == evdev.ecodes.BTN_EXTRA
+    assert event.value == 1
+    assert event.timestamp == 123.456
+
+
+def test_service_ignores_helper_mouse_relative_event():
+    executed_actions = []
+
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={
+            "next": ShortcutConfiguration(
+                primary=make_shortcut("BTN_SIDE"),
+            ),
+        },
         on_action=executed_actions.append,
         stop_requested=lambda: False,
     )
 
-    service.run()
+    service._handle_helper_event(
+        {
+            "type": "mouse_relative_event",
+            "device_id": "mouse-1",
+            "code": evdev.ecodes.REL_X,
+            "value": 100,
+            "timestamp": 123.456,
+        },
+    )
 
-    assert captured_devices == [
-        keyboard,
+    assert executed_actions == []
+
+
+def test_service_processes_helper_mouse_button_event_from_socket(
+    tmp_path,
+):
+    socket_path = tmp_path / "helper.sock"
+    server_socket = socket.socket(
+        socket.AF_UNIX,
+        socket.SOCK_STREAM,
+    )
+    server_socket.bind(str(socket_path))
+    server_socket.listen(1)
+
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={
+            "next": ShortcutConfiguration(
+                primary=make_shortcut("BTN_SIDE"),
+            ),
+        },
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    captured_shortcuts = []
+
+    helper_client = HelperClient(
+        socket_path=str(socket_path),
+        on_event=service._handle_helper_event,
+        on_disconnect=service._handle_helper_disconnect,
+    )
+    service._helper_client = helper_client
+
+    client_socket = None
+
+    def fake_helper():
+        nonlocal client_socket
+
+        client_socket, _ = server_socket.accept()
+
+        client_socket.sendall(
+            b'{"type":"hello_ack","protocol":1}\n',
+        )
+
+        buffer = bytearray()
+
+        while True:
+            separator = buffer.find(b"\n")
+            if separator == -1:
+                buffer.extend(client_socket.recv(4096))
+                continue
+
+            line = bytes(buffer[:separator])
+            del buffer[:separator + 1]
+
+            message = json.loads(line)
+
+            if message["type"] == "start_capture":
+                break
+
+        client_socket.sendall(
+            (
+                '{"type":"mouse_button_event",'
+                '"device_id":"mouse-1",'
+                '"code":'
+                f"{evdev.ecodes.BTN_SIDE},"
+                '"value":1,'
+                '"timestamp":123.456}\n'
+            ).encode(),
+        )
+
+    server_thread = threading.Thread(target=fake_helper)
+    server_thread.start()
+
+    try:
+        helper_client.connect()
+
+        service.start_capture(
+            allowed_mouse_buttons={evdev.ecodes.BTN_SIDE},
+            callback=captured_shortcuts.append,
+            error_callback=lambda error: None,
+            rejected_callback=lambda _reason: None,
+        )
+
+        server_thread.join(timeout=1)
+
+        for _ in range(100):
+            if captured_shortcuts == [make_shortcut("BTN_SIDE")]:
+                break
+            time.sleep(0.01)
+
+        assert captured_shortcuts == [make_shortcut("BTN_SIDE")]
+    finally:
+        helper_client.disconnect()
+
+        if client_socket is not None:
+            client_socket.close()
+
+        server_socket.close()
+
+    assert not server_thread.is_alive()
+
+
+def test_service_stores_helper_selected_mouse():
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": EVENT_MOUSE_SELECTED,
+            "device_id": "mouse-1",
+        },
+    )
+
+    assert service._selected_mouse == "mouse-1"
+
+
+def test_service_handles_helper_mouse_interception_started(
+    caplog,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    with caplog.at_level("INFO"):
+        service._handle_helper_event(
+            {
+                "type": EVENT_MOUSE_INTERCEPTION_STARTED,
+                "device_id": "mouse-1",
+            },
+        )
+
+    assert "Mouse interception started: device_id=mouse-1" in caplog.text
+
+
+def test_service_handles_helper_mouse_interception_stopped(
+    caplog,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    with caplog.at_level("INFO"):
+        service._handle_helper_event(
+            {
+                "type": EVENT_MOUSE_INTERCEPTION_STOPPED,
+                "device_id": "mouse-1",
+            },
+        )
+
+    assert "Mouse interception stopped: device_id=mouse-1" in caplog.text
+
+
+def test_service_requests_helper_mouse_interception(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_mouse_interception",
+        calls.append,
+    )
+
+    service._set_helper_mouse_interception(True)
+
+    assert calls == [True]
+
+
+def test_service_handles_helper_mouse_interception_error(
+    monkeypatch,
+    caplog,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    def fail(_enabled):
+        raise HelperClientError
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_mouse_interception",
+        fail,
+    )
+
+    with caplog.at_level("ERROR"):
+        service._set_helper_mouse_interception(True)
+
+    assert (
+        "Unable to update mouse interception through input helper"
+        in caplog.text
+    )
+
+
+def test_service_syncs_helper_mouse_interception_when_mouse_is_selected(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._calibrated = True
+    service._mouse_interception_enabled = True
+
+    button_calls = []
+    grab_calls = []
+    interception_calls = []
+
+    monkeypatch.setattr(
+        service,
+        "_set_helper_intercepted_mouse_buttons",
+        button_calls.append,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "grab_selected_mouse",
+        lambda: grab_calls.append(True),
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        interception_calls.append,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": EVENT_MOUSE_SELECTED,
+            "device_id": "mouse-1",
+        },
+    )
+
+    assert service._selected_mouse == "mouse-1"
+    assert grab_calls == [True]
+    assert button_calls == [
+        set(),
+        set(),
     ]
-    assert executed_actions == [
-        "next",
+    assert interception_calls == [True]
+
+
+def test_service_does_not_enable_helper_mouse_interception_before_calibration(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._mouse_interception_enabled = True
+
+    calls = []
+
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        calls.append,
+    )
+
+    service._handle_helper_event(
+        {
+            "type": EVENT_MOUSE_SELECTED,
+            "device_id": "mouse-1",
+        },
+    )
+
+    assert calls == [False]
+
+
+def test_service_syncs_helper_mouse_interception_when_calibration_becomes_valid(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._selected_mouse = make_device(
+        "/dev/input/event0",
+        "Mouse",
+    )
+    service._mouse_interception_enabled = True
+
+    button_calls = []
+    grab_calls = []
+    interception_calls = []
+
+    monkeypatch.setattr(
+        service,
+        "_set_helper_intercepted_mouse_buttons",
+        button_calls.append,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "grab_selected_mouse",
+        lambda: grab_calls.append(True),
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        interception_calls.append,
+    )
+
+    service.set_calibration_valid(True)
+
+    assert grab_calls == [True]
+    assert button_calls == [set()]
+    assert interception_calls == [True]
+
+
+def test_service_syncs_helper_mouse_interception_when_enabled_state_changes(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._calibrated = True
+    service._selected_mouse = make_device(
+        "/dev/input/event0",
+        "Mouse",
+    )
+
+    grab_calls = []
+    interception_calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "grab_selected_mouse",
+        lambda: grab_calls.append(True),
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_intercepted_mouse_buttons",
+        lambda buttons: None,
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        interception_calls.append,
+    )
+
+    service.set_mouse_interception_enabled(False)
+    service.set_mouse_interception_enabled(True)
+
+    assert grab_calls == [True]
+    assert interception_calls == [False, True]
+
+
+def test_service_does_not_enable_helper_mouse_interception_without_calibration(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._selected_mouse = make_device(
+        "/dev/input/event0",
+        "Mouse",
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        calls.append,
+    )
+
+    service.set_mouse_interception_enabled(False)
+
+    assert calls == [False]
+
+
+def test_service_updates_helper_intercepted_mouse_buttons(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._mouse_interception_enabled = True
+
+    calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_intercepted_mouse_buttons",
+        calls.append,
+    )
+
+    configuration = {
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("BTN_SIDE"),
+        ),
+        "previous": ShortcutConfiguration(
+            primary=make_shortcut("BTN_EXTRA"),
+        ),
+    }
+
+    service.update_configuration(configuration)
+
+    assert calls == [
+        {
+            evdev.ecodes.BTN_SIDE,
+            evdev.ecodes.BTN_EXTRA,
+        },
     ]
+
+
+def test_service_clears_helper_intercepted_mouse_buttons_when_interception_disabled(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._mouse_interception_enabled = False
+
+    calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_intercepted_mouse_buttons",
+        calls.append,
+    )
+
+    configuration = {
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("BTN_SIDE"),
+        ),
+    }
+
+    service.update_configuration(configuration)
+
+    assert calls == [set()]
+
+
+def test_service_handles_helper_mouse_button_configuration_error(
+    monkeypatch,
+    caplog,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    def fail(_buttons):
+        raise HelperClientError
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_intercepted_mouse_buttons",
+        fail,
+    )
+
+    with caplog.at_level("ERROR"):
+        service._set_helper_intercepted_mouse_buttons(
+            {evdev.ecodes.BTN_SIDE},
+        )
+
+    assert (
+        "Unable to update intercepted mouse buttons through input helper"
+        in caplog.text
+    )
+
+
+def test_service_syncs_helper_mouse_buttons_when_mouse_is_selected(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    service._mouse_interception_enabled = True
+
+    button_calls = []
+    interception_calls = []
+
+    monkeypatch.setattr(
+        service,
+        "_set_helper_intercepted_mouse_buttons",
+        button_calls.append,
+    )
+    monkeypatch.setattr(
+        service,
+        "_sync_helper_mouse_interception",
+        lambda: interception_calls.append(True),
+    )
+
+    service._configuration = {
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("BTN_SIDE"),
+        ),
+        "previous": ShortcutConfiguration(
+            primary=make_shortcut("BTN_EXTRA"),
+        ),
+    }
+
+    service._handle_helper_mouse_selected(
+        {
+            "type": EVENT_MOUSE_SELECTED,
+            "device_id": "mouse-1",
+        },
+    )
+
+    assert service._selected_mouse == "mouse-1"
+    assert button_calls == [
+        {
+            evdev.ecodes.BTN_SIDE,
+            evdev.ecodes.BTN_EXTRA,
+        },
+    ]
+    assert interception_calls == [True]
+
+
+def test_service_serializes_shortcut_configuration_for_helper(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration={},
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        calls.append,
+    )
+
+    configuration = {
+        "calibration": ShortcutConfiguration(
+            primary=make_shortcut("F1", ["SHIFT", "CTRL"]),
+            alternate=None,
+        ),
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("N", ["META"]),
+            alternate=make_shortcut("BTN_SIDE"),
+        ),
+        "previous": ShortcutConfiguration(
+            primary=None,
+            alternate=make_shortcut("P", ["ALT", "CTRL"]),
+        ),
+    }
+
+    service.update_configuration(configuration)
+
+    assert calls == [
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": "F1",
+                    "modifiers": ["CTRL", "SHIFT"],
+                },
+                "alternate": None,
+            },
+            "next": {
+                "primary": {
+                    "trigger": "N",
+                    "modifiers": ["META"],
+                },
+                "alternate": {
+                    "trigger": "BTN_SIDE",
+                    "modifiers": [],
+                },
+            },
+            "previous": {
+                "primary": None,
+                "alternate": {
+                    "trigger": "P",
+                    "modifiers": ["ALT", "CTRL"],
+                },
+            },
+        },
+    ]
+
+
+def test_service_updates_configuration_when_helper_accepts_it(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration=make_configuration(),
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        lambda configuration: None,
+    )
+
+    new_configuration = {
+        "calibration": ShortcutConfiguration(
+            primary=make_shortcut("F2", ["CTRL"]),
+        ),
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("N", ["META"]),
+        ),
+        "previous": ShortcutConfiguration(),
+    }
+
+    service.update_configuration(new_configuration)
+
+    assert service._configuration == new_configuration
+
+
+def test_service_keeps_configuration_when_helper_update_fails(
+    monkeypatch,
+):
+    service = ShortcutService(
+        keyboard_layout=FakeKeyboardLayout(),
+        configuration=make_configuration(),
+        on_action=lambda action: None,
+        stop_requested=lambda: False,
+    )
+
+    def fail(_configuration):
+        raise HelperClientError
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        fail,
+    )
+
+    new_configuration = {
+        "calibration": ShortcutConfiguration(
+            primary=make_shortcut("F2", ["CTRL"]),
+        ),
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("N", ["META"]),
+        ),
+        "previous": ShortcutConfiguration(),
+    }
+
+    service.update_configuration(new_configuration)
+
+    assert service._configuration == new_configuration

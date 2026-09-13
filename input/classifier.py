@@ -18,7 +18,6 @@ class DeviceClass(Enum):
 @dataclass(frozen=True)
 class Classification:
     device_class: DeviceClass
-    confidence: int
 
 
 def _has_event_code(
@@ -40,7 +39,7 @@ def classify_device(device: InputDeviceInfo) -> Classification:
     has_sw = evdev.ecodes.EV_SW in capabilities
 
     if has_sw and not has_key and not has_rel and not has_abs:
-        return Classification(DeviceClass.SWITCH, 100)
+        return Classification(DeviceClass.SWITCH)
 
     if has_rel:
         mouse_score = 0
@@ -61,7 +60,7 @@ def classify_device(device: InputDeviceInfo) -> Classification:
             mouse_score += 5
 
         if mouse_score >= 70:
-            return Classification(DeviceClass.MOUSE, min(mouse_score, 100))
+            return Classification(DeviceClass.MOUSE)
 
     if has_abs:
         gamepad_score = 0
@@ -79,7 +78,7 @@ def classify_device(device: InputDeviceInfo) -> Classification:
             gamepad_score += 20
 
         if gamepad_score >= 50:
-            return Classification(DeviceClass.GAMEPAD, min(gamepad_score, 100))
+            return Classification(DeviceClass.GAMEPAD)
 
     if has_key:
         keyboard_score = 0
@@ -111,28 +110,14 @@ def classify_device(device: InputDeviceInfo) -> Classification:
         )
 
         if consumer_count >= 2 and keyboard_score == 0:
-            return Classification(DeviceClass.CONSUMER_CONTROL, 100)
+            return Classification(DeviceClass.CONSUMER_CONTROL)
 
         if keyboard_score >= 60:
             return Classification(
                 DeviceClass.KEYBOARD,
-                min(keyboard_score, 100),
             )
 
     if has_key:
-        return Classification(DeviceClass.CONSUMER_CONTROL, 50)
+        return Classification(DeviceClass.CONSUMER_CONTROL)
 
-    return Classification(DeviceClass.OTHER, 100)
-
-
-def get_devices_by_class(
-    devices: list[InputDeviceInfo],
-    device_class: DeviceClass,
-) -> list[InputDeviceInfo]:
-    """Return devices classified as the requested device class."""
-
-    return [
-        device
-        for device in devices
-        if classify_device(device).device_class == device_class
-    ]
+    return Classification(DeviceClass.OTHER)

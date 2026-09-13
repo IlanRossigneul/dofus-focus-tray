@@ -7,7 +7,7 @@ MODIFIER_KEYS = {
     evdev.ecodes.KEY_LEFTCTRL: "CTRL",
     evdev.ecodes.KEY_RIGHTCTRL: "CTRL",
     evdev.ecodes.KEY_LEFTALT: "ALT",
-    evdev.ecodes.KEY_RIGHTALT: "ALT",
+    evdev.ecodes.KEY_RIGHTALT: "ALTGR",
     evdev.ecodes.KEY_LEFTSHIFT: "SHIFT",
     evdev.ecodes.KEY_RIGHTSHIFT: "SHIFT",
     evdev.ecodes.KEY_LEFTMETA: "META",
@@ -100,6 +100,36 @@ def get_trigger(
     return keyboard_layout.keycode_to_key(
         event.event_code,
     )
+
+
+def get_configured_mouse_buttons(
+    configuration: dict,
+) -> set[int]:
+    """Return evdev codes for configured mouse-button shortcuts."""
+
+    buttons = set()
+
+    for shortcut_configuration in configuration.values():
+        for shortcut in (
+            shortcut_configuration.primary,
+            shortcut_configuration.alternate,
+        ):
+            if shortcut is None:
+                continue
+
+            if not shortcut.trigger.startswith("BTN_"):
+                continue
+
+            event_code = getattr(
+                evdev.ecodes,
+                shortcut.trigger,
+                None,
+            )
+
+            if event_code is not None:
+                buttons.add(event_code)
+
+    return buttons
 
 
 class ShortcutCapture:

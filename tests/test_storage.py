@@ -1,3 +1,4 @@
+import pytest
 
 from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
@@ -159,3 +160,69 @@ def test_save_writes_trailing_newline(tmp_path):
     storage.save({})
 
     assert path.read_text(encoding="utf-8").endswith("\n")
+
+
+def test_load_rejects_missing_shortcut_slot(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid shortcut slots",
+    ):
+        storage.load()
+
+
+def test_load_rejects_unknown_shortcut_slot(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": null,
+                "alternate": null,
+                "tertiary": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid shortcut slots",
+    ):
+        storage.load()
+
+
+def test_load_rejects_non_dictionary_action_configuration(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": null
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Invalid configuration for action",
+    ):
+        storage.load()

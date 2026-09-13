@@ -1,8 +1,7 @@
 import evdev
 
-from input.events import InputEvent
-
 from .capture import get_modifier, get_trigger
+from .events import ShortcutEvent
 from .keyboard import KeyboardLayout
 from .model import Shortcut
 
@@ -14,7 +13,7 @@ class ShortcutProcessor:
         self._keyboard_layout = keyboard_layout
         self._pressed_modifiers = set()
 
-    def process_event(self, event: InputEvent) -> Shortcut | None:
+    def process_event(self, event: ShortcutEvent) -> Shortcut | None:
         """Process an input event and return a shortcut when triggered."""
 
         if event.event_type != evdev.ecodes.EV_KEY:

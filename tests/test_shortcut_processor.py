@@ -1,19 +1,7 @@
 import evdev
 
-from input.discovery import InputDeviceInfo
-from input.events import InputEvent
+from shortcuts.events import ShortcutEvent
 from shortcuts.processor import ShortcutProcessor
-
-DEVICE = InputDeviceInfo(
-    path="/dev/input/event0",
-    name="Test device",
-    phys="",
-    uniq="",
-    vendor=0,
-    product=0,
-    bus=0,
-    capabilities={},
-)
 
 
 class FakeKeyboardLayout:
@@ -24,8 +12,7 @@ class FakeKeyboardLayout:
 
 
 def make_event(event_code, value=1):
-    return InputEvent(
-        device=DEVICE,
+    return ShortcutEvent(
         event_type=evdev.ecodes.EV_KEY,
         event_code=event_code,
         value=value,

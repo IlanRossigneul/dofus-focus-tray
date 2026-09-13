@@ -251,12 +251,19 @@ class Application:
 
     def _open_shortcuts_window(self) -> None:
         """Open the shortcut configuration window and pause shortcut handling."""
-        if self.shortcut_service is not None:
-            self.shortcut_service.set_enabled(False)
-            self.shortcut_service.set_mouse_interception_enabled(False)
+        if self.shortcut_service is None:
+            logger.warning(
+                "Unable to open shortcut configuration: shortcut service is not ready",
+            )
+            return
+
+        self.shortcut_service.set_enabled(False)
+        self.shortcut_service.set_mouse_interception_enabled(False)
 
         if self.shortcuts_window is None:
-            self.shortcuts_window = ShortcutsWindow()
+            self.shortcuts_window = ShortcutsWindow(
+                shortcut_service=self.shortcut_service,
+            )
 
             self.shortcuts_window.closed.connect(
                 self._handle_shortcuts_window_closed,

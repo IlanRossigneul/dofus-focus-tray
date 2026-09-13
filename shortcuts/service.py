@@ -1,29 +1,32 @@
 import logging
-import select
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 import evdev
-import pyudev
 
-from input.classifier import DeviceClass, classify_device
-from input.discovery import InputDeviceInfo, discover_input_devices
-from input.events import read_events_from_devices
-from input.interceptor import (
-    MouseInterceptor,
-    get_configured_mouse_buttons,
-    select_mouse,
+from app.helper_client import HelperClient, HelperClientError
+from helper.protocol import (
+    EVENT_KEYBOARD_EVENT,
+    EVENT_MOUSE_BUTTON_EVENT,
+    EVENT_MOUSE_INTERCEPTION_STARTED,
+    EVENT_MOUSE_INTERCEPTION_STOPPED,
+    EVENT_MOUSE_RELATIVE_EVENT,
+    EVENT_MOUSE_SELECTED,
+    EVENT_MOUSE_SELECTED_LOST,
+    EVENT_SHORTCUT,
 )
 
+from .capture import (
+    ShortcutCapture,
+    ShortcutCaptureRejected,
+    get_configured_mouse_buttons,
+)
+from .events import ShortcutEvent
 from .keyboard import KeyboardLayout
 from .model import Shortcut
-from .processor import ShortcutProcessor
 from .storage import ShortcutConfiguration
-
-MOUSE_DISCOVERY_ATTEMPTS = 10
-MOUSE_DISCOVERY_RETRY_DELAY = 1.0
-
 
 logger = logging.getLogger(__name__)
 
@@ -45,215 +48,223 @@ class ShortcutService:
         self._mouse_interception_enabled = True
         self._calibrated = False
 
-        self._processor = ShortcutProcessor(
-            keyboard_layout,
+        self._keyboard_layout = keyboard_layout
+
+        self._capture_lock = threading.RLock()
+
+        self._capture: ShortcutCapture | None = None
+        self._capture_callback: Callable[[Shortcut], None] | None = None
+        self._capture_error_callback: Callable[[Exception], None] | None = None
+        self._capture_rejected_callback: Callable[[str], None] | None = None
+
+        self._helper_client = HelperClient(
+            on_event=self._handle_helper_event,
+            on_disconnect=self._handle_helper_disconnect,
         )
 
-        self._selected_mouse: InputDeviceInfo | None = None
-        self._mouse_interceptor: MouseInterceptor | None = None
-        self._mouse_discovery_thread: threading.Thread | None = None
-        self._mouse_thread: threading.Thread | None = None
+        self._selected_mouse: str | None = None
         self._mouse_state_lock = threading.RLock()
-        self._mouse_stop_event = threading.Event()
+        self._mouse_grabbed = False
 
-    def _select_mouse_with_retry(
+    def _handle_helper_event(
         self,
-    ) -> InputDeviceInfo | None:
-        """Try to select a mouse repeatedly until one is detected."""
+        event: dict[str, Any],
+    ) -> None:
+        """Handle an event received from the input helper."""
+        event_type = event["type"]
 
-        for attempt in range(MOUSE_DISCOVERY_ATTEMPTS):
-            if self._stop_requested():
-                return None
-
-            monitor_devices = self._get_monitored_devices()
-
-            mice = [
-                device
-                for device in monitor_devices
-                if classify_device(device).device_class
-                == DeviceClass.MOUSE
-            ]
-
-            selected_mouse = select_mouse(mice)
-
-            if selected_mouse is not None:
-                return selected_mouse
-
-            if attempt < MOUSE_DISCOVERY_ATTEMPTS - 1:
-                time.sleep(MOUSE_DISCOVERY_RETRY_DELAY)
-
-        return None
-
-    def _run_mouse_discovery(self) -> None:
-        """Select the mouse that will be used for interception."""
-
-        selected_mouse = self._select_mouse_with_retry()
-
-        if selected_mouse is None:
+        if event_type == EVENT_KEYBOARD_EVENT:
+            self._handle_helper_keyboard_event(event)
             return
 
-        with self._mouse_state_lock:
-            self._selected_mouse = selected_mouse
+        if event_type == EVENT_SHORTCUT:
+            self._handle_helper_shortcut(event)
+            return
 
-            logger.info(
-                "Mouse grab started: device=%s path=%s",
-                selected_mouse.name,
-                selected_mouse.path,
+        if event_type == EVENT_MOUSE_BUTTON_EVENT:
+            self._handle_helper_mouse_button_event(event)
+            return
+
+        if event_type == EVENT_MOUSE_RELATIVE_EVENT:
+            self._handle_helper_mouse_relative_event(event)
+            return
+
+        if event_type == EVENT_MOUSE_SELECTED:
+            self._handle_helper_mouse_selected(event)
+            return
+
+        if event_type == EVENT_MOUSE_SELECTED_LOST:
+            self._handle_helper_mouse_selected_lost()
+            return
+
+        if event_type == EVENT_MOUSE_INTERCEPTION_STARTED:
+            self._handle_helper_mouse_interception_started(event)
+            return
+
+        if event_type == EVENT_MOUSE_INTERCEPTION_STOPPED:
+            self._handle_helper_mouse_interception_stopped(event)
+            return
+
+    def _handle_helper_keyboard_event(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Process a keyboard event received during shortcut capture."""
+
+        shortcut_event = ShortcutEvent(
+            event_type=evdev.ecodes.EV_KEY,
+            event_code=event["code"],
+            value=event["value"],
+            timestamp=event["timestamp"],
+        )
+
+        self._process_capture_event(
+            shortcut_event,
+        )
+
+    def _handle_helper_mouse_button_event(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Process a mouse button event received during shortcut capture."""
+
+        shortcut_event = ShortcutEvent(
+            event_type=evdev.ecodes.EV_KEY,
+            event_code=event["code"],
+            value=event["value"],
+            timestamp=event["timestamp"],
+        )
+
+        self._process_capture_event(
+            shortcut_event,
+        )
+
+    def _handle_helper_mouse_relative_event(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Ignore mouse relative events for shortcut processing."""
+
+    def _handle_helper_disconnect(self) -> None:
+        """Handle an unexpected input helper disconnection."""
+        if not self._stop_requested():
+            logger.error("Input helper connection lost")
+
+    def _handle_helper_mouse_selected(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Store the mouse selected by the input helper."""
+        with self._mouse_state_lock:
+            self._selected_mouse = event["device_id"]
+
+        self._set_helper_intercepted_mouse_buttons(
+            get_configured_mouse_buttons(
+                self._configuration,
+            )
+            if self._mouse_interception_enabled
+            else set(),
+        )
+        self._sync_helper_mouse_interception()
+
+    def _handle_helper_mouse_selected_lost(self) -> None:
+        """Clear the selected mouse after it was lost."""
+        with self._mouse_state_lock:
+            self._selected_mouse = None
+            self._mouse_grabbed = False
+
+    def _handle_helper_mouse_interception_started(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Handle confirmation that mouse interception started."""
+
+        logger.info(
+            "Mouse interception started: device_id=%s",
+            event["device_id"],
+        )
+
+    def _handle_helper_mouse_interception_stopped(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Handle confirmation that mouse interception stopped."""
+
+        logger.info(
+            "Mouse interception stopped: device_id=%s",
+            event["device_id"],
+        )
+
+    def _set_helper_mouse_interception(
+        self,
+        enabled: bool,
+    ) -> None:
+        """Request the input helper to enable or disable mouse interception."""
+
+        try:
+            self._helper_client.set_mouse_interception(
+                enabled,
+            )
+        except HelperClientError:
+            logger.error(
+                "Unable to update mouse interception through input helper",
             )
 
-            if self._calibrated:
-                self._start_mouse_interceptor()
+    def _set_helper_intercepted_mouse_buttons(
+        self,
+        buttons: set[int],
+    ) -> None:
+        """Request the input helper to update intercepted mouse buttons."""
 
-    def _start_mouse_discovery(self) -> None:
-        """Start mouse discovery if no discovery is already running."""
+        try:
+            self._helper_client.set_intercepted_mouse_buttons(
+                buttons,
+            )
+        except HelperClientError:
+            logger.error(
+                "Unable to update intercepted mouse buttons through input helper",
+            )
 
-        if self._stop_requested():
-            return
+    def _sync_helper_mouse_interception(self) -> None:
+        """Synchronize mouse grab and interception with the current state."""
 
         if (
-            self._mouse_discovery_thread is not None
-            and self._mouse_discovery_thread.is_alive()
+            self._calibrated
+            and self._selected_mouse is not None
+            and self._mouse_interception_enabled
         ):
-            return
+            if not self._mouse_grabbed:
+                try:
+                    self._helper_client.grab_selected_mouse()
+                except HelperClientError:
+                    logger.error(
+                        "Unable to grab selected mouse through input helper",
+                    )
+                    return
 
-        self._mouse_discovery_thread = threading.Thread(
-            target=self._run_mouse_discovery,
-            name="MouseDiscoveryThread",
-            daemon=True,
-        )
+                self._mouse_grabbed = True
 
-        self._mouse_discovery_thread.start()
-
-    def _process_mouse_event(
-        self,
-        event: evdev.InputEvent,
-    ) -> None:
-        """Process an intercepted mouse-button event."""
-
-        if event.value != 1:
-            return
-
-        trigger = evdev.ecodes.BTN.get(
-            event.code,
-        )
-
-        if trigger is None:
-            return
-
-        self._handle_shortcut(
-            Shortcut(
-                trigger=trigger,
-            ),
-        )
-
-    def _run_mouse_interceptor(
-        self,
-        interceptor: MouseInterceptor,
-    ) -> None:
-        """Process intercepted mouse events while interception is active."""
-
-        while (
-            not self._mouse_stop_event.is_set()
-            and self._mouse_interceptor is interceptor
-        ):
-            try:
-                ready, _, _ = select.select(
-                    [interceptor.fileno()],
-                    [],
-                    [],
-                    0.1,
-                )
-
-                if not ready:
-                    continue
-
-                for event in interceptor.read():
-                    if self._mouse_stop_event.is_set():
-                        break
-
-                    if interceptor.should_intercept(event):
-                        logger.debug(
-                            "Mouse event intercepted: event=%s",
-                            evdev.categorize(event),
-                        )
-
-                        self._process_mouse_event(
-                            event,
-                        )
-
-                        continue
-
-                    interceptor.forward_event(event)
-
-            except BlockingIOError:
-                continue
-
-            except (OSError, ValueError):
-                break
-
-    def _start_mouse_interceptor(self) -> None:
-        """Start mouse interception if a mouse has been selected."""
-
-        with self._mouse_state_lock:
-            if self._selected_mouse is None:
-                return
-
-            if self._mouse_interceptor is not None:
-                return
-
-            intercepted_buttons = (
+            self._set_helper_intercepted_mouse_buttons(
                 get_configured_mouse_buttons(
                     self._configuration,
+                ),
+            )
+            self._set_helper_mouse_interception(True)
+            return
+
+        self._set_helper_mouse_interception(False)
+        self._set_helper_intercepted_mouse_buttons(set())
+
+        if self._mouse_grabbed:
+            try:
+                self._helper_client.release_selected_mouse()
+            except HelperClientError:
+                logger.error(
+                    "Unable to release selected mouse through input helper",
                 )
-                if self._mouse_interception_enabled
-                else set()
-            )
-
-            interceptor = MouseInterceptor(
-                device=self._selected_mouse,
-                intercepted_buttons=intercepted_buttons,
-            )
-
-            if not interceptor.start():
                 return
 
-            self._mouse_interceptor = interceptor
-
-            self._mouse_stop_event.clear()
-
-            self._mouse_thread = threading.Thread(
-                target=self._run_mouse_interceptor,
-                args=(interceptor,),
-                name="MouseInterceptorThread",
-                daemon=True,
-            )
-
-            self._mouse_thread.start()
-
-    def _stop_mouse_interceptor(self) -> None:
-        """Stop mouse interception and wait for the worker thread to exit."""
-
-        with self._mouse_state_lock:
-            interceptor = self._mouse_interceptor
-            mouse_thread = self._mouse_thread
-
-            if interceptor is None:
-                return
-
-            self._mouse_stop_event.set()
-            self._mouse_interceptor = None
-
-            if (
-                mouse_thread is not None
-                and mouse_thread is not threading.current_thread()
-            ):
-                mouse_thread.join()
-
-            self._mouse_thread = None
-
-            interceptor.stop()
-
-            logger.info("Mouse grab released")
+            self._mouse_grabbed = False
 
     def set_calibration_valid(
         self,
@@ -265,11 +276,7 @@ class ShortcutService:
             return
 
         self._calibrated = calibrated
-
-        if calibrated:
-            self._start_mouse_interceptor()
-        else:
-            self._stop_mouse_interceptor()
+        self._sync_helper_mouse_interception()
 
     def set_mouse_interception_enabled(
         self,
@@ -281,93 +288,125 @@ class ShortcutService:
             return
 
         self._mouse_interception_enabled = enabled
+        self._sync_helper_mouse_interception()
 
-        if self._mouse_interceptor is None:
+    def start_capture(
+        self,
+        allowed_mouse_buttons: set[int] | None,
+        callback: Callable[[Shortcut], None],
+        error_callback: Callable[[Exception], None],
+        rejected_callback: Callable[[str], None],
+    ) -> None:
+        """Start capturing the next valid shortcut from helper input events."""
+
+        with self._capture_lock:
+            if self._capture is not None:
+                return
+
+            self._capture = ShortcutCapture(
+                self._keyboard_layout,
+                allowed_mouse_buttons=allowed_mouse_buttons,
+            )
+            self._capture_callback = callback
+            self._capture_error_callback = error_callback
+            self._capture_rejected_callback = rejected_callback
+
+        try:
+            self._helper_client.start_capture(
+                allowed_mouse_buttons,
+            )
+        except HelperClientError as error:
+            with self._capture_lock:
+                self._capture = None
+                self._capture_callback = None
+                self._capture_error_callback = None
+                self._capture_rejected_callback = None
+
+            error_callback(error)
+
+    def stop_capture(self) -> None:
+        """Stop the current shortcut capture."""
+
+        try:
+            self._helper_client.stop_capture()
+        except HelperClientError:
+            logger.warning(
+                "Unable to stop input helper capture cleanly",
+            )
             return
 
-        intercepted_buttons = (
-            get_configured_mouse_buttons(
-                self._configuration,
-            )
-            if enabled
-            else set()
-        )
+        with self._capture_lock:
+            self._capture = None
+            self._capture_callback = None
+            self._capture_error_callback = None
+            self._capture_rejected_callback = None
 
-        self._mouse_interceptor.update_intercepted_buttons(
-            intercepted_buttons,
-        )
+        self._sync_helper_mouse_interception()
 
-    def _match_shortcut(
+    def _process_capture_event(
         self,
-        shortcut: Shortcut,
-    ) -> str | None:
-        """Return the action matching a shortcut, or None if there is no match."""
+        event: ShortcutEvent,
+    ) -> bool:
+        """Process an input event through the active shortcut capture."""
 
-        for action, configuration in self._configuration.items():
-            if shortcut in (
-                configuration.primary,
-                configuration.alternate,
-            ):
-                return action
+        with self._capture_lock:
+            capture = self._capture
 
-        return None
+            if capture is None:
+                return False
 
-    def _handle_shortcut(
+            try:
+                shortcut = capture.process_event(
+                    event,
+                )
+            except ShortcutCaptureRejected as error:
+                callback = self._capture_rejected_callback
+
+                if callback is None:
+                    return True
+
+                callback_argument = error.trigger
+            except Exception as error:  # noqa: BLE001
+                callback = self._capture_error_callback
+
+                self._capture = None
+                self._capture_callback = None
+                self._capture_error_callback = None
+                self._capture_rejected_callback = None
+
+                if callback is None:
+                    return True
+
+                callback_argument = error
+            else:
+                if shortcut is None:
+                    return True
+
+                callback = self._capture_callback
+
+                self._capture = None
+                self._capture_callback = None
+                self._capture_error_callback = None
+                self._capture_rejected_callback = None
+
+                if callback is None:
+                    return True
+
+                callback_argument = shortcut
+
+        callback(callback_argument)
+        return True
+
+    def _handle_helper_shortcut(
         self,
-        shortcut: Shortcut,
+        event: dict[str, Any],
     ) -> None:
-        """Handle a captured shortcut and execute its configured action."""
+        """Handle an authorized shortcut action from the input helper."""
 
         if not self._enabled:
             return
 
-        action = self._match_shortcut(shortcut)
-
-        if action is not None:
-            self._on_action(action)
-
-    def _get_monitored_devices(
-        self,
-    ) -> list[InputDeviceInfo]:
-        """Return currently available keyboard and mouse devices."""
-
-        devices = discover_input_devices()
-
-        return [
-            device
-            for device in devices
-            if classify_device(device).device_class
-            in (
-                DeviceClass.KEYBOARD,
-                DeviceClass.MOUSE,
-            )
-        ]
-
-    def _handle_devices_changed(
-        self,
-    ) -> list[InputDeviceInfo]:
-        """Handle device changes and recover the selected mouse if needed."""
-
-        devices = self._get_monitored_devices()
-
-        with self._mouse_state_lock:
-            if self._selected_mouse is None:
-                return devices
-
-            selected_mouse_path = self._selected_mouse.path
-
-            if any(
-                device.path == selected_mouse_path
-                for device in devices
-            ):
-                return devices
-
-            self._stop_mouse_interceptor()
-            self._selected_mouse = None
-
-            self._start_mouse_discovery()
-
-        return devices
+        self._on_action(event["action"])
 
     def set_enabled(
         self,
@@ -377,6 +416,38 @@ class ShortcutService:
 
         self._enabled = enabled
 
+    def _serialize_configuration(
+        self,
+        configuration: dict[str, ShortcutConfiguration],
+    ) -> dict:
+        """Convert shortcut configurations to the helper protocol format."""
+
+        return {
+            action: {
+                "primary": self._serialize_shortcut(
+                    action_configuration.primary,
+                ),
+                "alternate": self._serialize_shortcut(
+                    action_configuration.alternate,
+                ),
+            }
+            for action, action_configuration in configuration.items()
+        }
+
+    @staticmethod
+    def _serialize_shortcut(
+        shortcut: Shortcut | None,
+    ) -> dict | None:
+        """Convert a shortcut to the helper protocol format."""
+
+        if shortcut is None:
+            return None
+
+        return {
+            "trigger": shortcut.trigger,
+            "modifiers": sorted(shortcut.modifiers),
+        }
+
     def update_configuration(
         self,
         configuration: dict[str, ShortcutConfiguration],
@@ -385,8 +456,16 @@ class ShortcutService:
 
         self._configuration = configuration
 
-        if self._mouse_interceptor is None:
-            return
+        try:
+            self._helper_client.set_shortcut_configuration(
+                self._serialize_configuration(
+                    configuration,
+                ),
+            )
+        except HelperClientError:
+            logger.error(
+                "Unable to update shortcut configuration through input helper",
+            )
 
         intercepted_buttons = (
             get_configured_mouse_buttons(
@@ -396,39 +475,30 @@ class ShortcutService:
             else set()
         )
 
-        self._mouse_interceptor.update_intercepted_buttons(
+        self._set_helper_intercepted_mouse_buttons(
             intercepted_buttons,
         )
 
     def run(self) -> None:
-        """Monitor input devices until monitoring is stopped."""
+        """Keep the input helper connection active until monitoring is stopped."""
 
-        monitor_devices = self._get_monitored_devices()
+        try:
+            self._helper_client.connect()
+            self._helper_client.start()
 
-        self._start_mouse_discovery()
-
-        context = pyudev.Context()
-        device_monitor = pyudev.Monitor.from_netlink(
-            context,
-        )
-        device_monitor.filter_by(
-            subsystem="input",
-        )
-        device_monitor.start()
-
-        for event in read_events_from_devices(
-            monitor_devices,
-            self._stop_requested,
-            device_monitor,
-            self._handle_devices_changed,
-        ):
-            shortcut = self._processor.process_event(
-                event,
+            self._helper_client.set_shortcut_configuration(
+                self._serialize_configuration(
+                    self._configuration,
+                ),
             )
 
-            if shortcut is not None:
-                self._handle_shortcut(
-                    shortcut,
-                )
+            while not self._stop_requested():
+                time.sleep(0.1)
 
-        self._stop_mouse_interceptor()
+        finally:
+            try:
+                self._helper_client.stop()
+            except HelperClientError:
+                logger.warning("Unable to stop input helper cleanly")
+
+            self._helper_client.disconnect()
