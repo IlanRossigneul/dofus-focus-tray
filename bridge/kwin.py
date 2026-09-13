@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import tempfile
@@ -48,11 +49,13 @@ class KWinController:
     async def activate_window(self, uuid: str) -> None:
         """Activate the KWin window identified by its UUID."""
 
+        uuid_literal = json.dumps(uuid)
+
         js_code = f"""
         var windows = workspace.windowList();
 
         for (var i = 0; i < windows.length; i++) {{
-            if (String(windows[i].internalId) === "{uuid}") {{
+            if (String(windows[i].internalId) === {uuid_literal}) {{
                 workspace.activeWindow = windows[i];
                 break;
             }}

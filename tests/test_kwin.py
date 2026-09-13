@@ -107,6 +107,52 @@ def test_activate_window_generates_script_for_target_window():
     asyncio.run(run_test())
 
 
+def test_activate_window_escapes_uuid_for_javascript():
+    controller = KWinController()
+    bus, _, _ = create_kwin_mocks()
+
+    bus.connect = AsyncMock(return_value=bus)
+    bus.disconnect = MagicMock()
+
+    temp_file = MagicMock()
+    temp_file.name = "/tmp/test-kwin-script.js"
+    temp_file.__enter__.return_value = temp_file
+
+    malicious_uuid = '"; maliciousCode(); //'
+
+    async def run_test():
+        with (
+            patch(
+                "bridge.kwin.MessageBus",
+                return_value=bus,
+            ),
+            patch(
+                "bridge.kwin.tempfile.NamedTemporaryFile",
+                return_value=temp_file,
+            ),
+            patch(
+                "bridge.kwin.os.path.exists",
+                return_value=True,
+            ),
+            patch(
+                "bridge.kwin.os.remove",
+            ),
+        ):
+            await controller.activate_window(malicious_uuid)
+
+        script = temp_file.write.call_args.args[0]
+
+        assert (
+            'String(windows[i].internalId) === '
+            '"\\"; maliciousCode(); //"'
+            in script
+        )
+        assert "String(windows[i].internalId) === " in script
+        assert "workspace.activeWindow = windows[i]" in script
+
+    asyncio.run(run_test())
+
+
 def test_activate_window_removes_temporary_script():
     controller = KWinController()
     bus, _, _ = create_kwin_mocks()
