@@ -1,3 +1,5 @@
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from shortcuts.model import Shortcut
@@ -68,6 +70,21 @@ def start_fake_capture(
         shortcut_type,
     )
     window._capture_active = True
+
+
+def press_key(
+    window,
+    key,
+):
+    event = QKeyEvent(
+        QEvent.Type.KeyPress,
+        key,
+        Qt.KeyboardModifier.NoModifier,
+    )
+
+    window.keyPressEvent(event)
+
+    return event
 
 
 def test_window_has_expected_title(tmp_path):
@@ -1091,8 +1108,9 @@ def test_escape_cancels_capture_and_restores_original_shortcut(
         target,
     )
 
-    window._handle_shortcut_captured(
-        Shortcut("ESCAPE"),
+    event = press_key(
+        window,
+        Qt.Key.Key_Escape,
     )
 
     assert (
@@ -1105,6 +1123,7 @@ def test_escape_cancels_capture_and_restores_original_shortcut(
     assert window._buttons[target].text() == "CTRL + D"
     assert window._capture_active is False
     assert window._capture_target is None
+    assert event.isAccepted() is True
 
     window.close()
 
@@ -1124,8 +1143,9 @@ def test_escape_cancels_capture_without_creating_shortcut(
         target,
     )
 
-    window._handle_shortcut_captured(
-        Shortcut("ESCAPE"),
+    event = press_key(
+        window,
+        Qt.Key.Key_Escape,
     )
 
     assert (
@@ -1138,6 +1158,7 @@ def test_escape_cancels_capture_without_creating_shortcut(
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
     assert window._capture_target is None
+    assert event.isAccepted() is True
 
     window.close()
 
@@ -1157,8 +1178,9 @@ def test_backspace_clears_current_shortcut(
         target,
     )
 
-    window._handle_shortcut_captured(
-        Shortcut("BACKSPACE"),
+    event = press_key(
+        window,
+        Qt.Key.Key_Backspace,
     )
 
     assert (
@@ -1171,6 +1193,7 @@ def test_backspace_clears_current_shortcut(
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
     assert window._capture_target is None
+    assert event.isAccepted() is True
 
     window.close()
 
@@ -1201,8 +1224,9 @@ def test_backspace_clears_existing_shortcut(
         target,
     )
 
-    window._handle_shortcut_captured(
-        Shortcut("BACKSPACE"),
+    event = press_key(
+        window,
+        Qt.Key.Key_Backspace,
     )
 
     assert (
@@ -1215,6 +1239,7 @@ def test_backspace_clears_existing_shortcut(
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
     assert window._capture_target is None
+    assert event.isAccepted() is True
 
     window.close()
 
@@ -1247,8 +1272,9 @@ def test_backspace_clears_capture_error(
         existing,
     )
 
-    window._handle_shortcut_captured(
-        Shortcut("BACKSPACE"),
+    event = press_key(
+        window,
+        Qt.Key.Key_Backspace,
     )
 
     assert (
@@ -1261,6 +1287,7 @@ def test_backspace_clears_capture_error(
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
     assert window._capture_target is None
+    assert event.isAccepted() is True
 
     window.close()
 

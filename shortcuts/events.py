@@ -9,3 +9,4 @@ class ShortcutEvent:
     event_code: int
     value: int
     timestamp: float
+    modifiers: frozenset[str] = frozenset()

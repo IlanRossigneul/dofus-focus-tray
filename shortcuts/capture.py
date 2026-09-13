@@ -1,6 +1,7 @@
 import evdev
 
-from .keyboard import KeyboardLayout
+from helper.xkb import Xkb
+
 from .model import Shortcut
 
 MODIFIER_KEYS = {
@@ -39,15 +40,6 @@ class ShortcutCaptureRejected(Exception):
         self.trigger = trigger
 
 
-def get_modifier(event) -> str | None:
-    """Return the modifier represented by an event."""
-
-    if event.event_type != evdev.ecodes.EV_KEY:
-        return None
-
-    return MODIFIER_KEYS.get(event.event_code)
-
-
 def get_rejected_mouse_button(
     event,
     allowed_mouse_buttons: set[int],
@@ -79,7 +71,7 @@ def get_rejected_mouse_button(
 
 def get_trigger(
     event,
-    keyboard_layout: KeyboardLayout,
+    xkb: Xkb,
 ) -> str | None:
     """Return the supported trigger represented by an event."""
 
@@ -97,7 +89,7 @@ def get_trigger(
     if event.event_code in MODIFIER_KEYS:
         return None
 
-    return keyboard_layout.keycode_to_key(
+    return xkb.keycode_to_key(
         event.event_code,
     )
 
@@ -137,16 +129,15 @@ class ShortcutCapture:
 
     def __init__(
         self,
-        keyboard_layout: KeyboardLayout,
+        xkb: Xkb,
         allowed_mouse_buttons: set[int] | None = None,
     ):
-        self._keyboard_layout = keyboard_layout
+        self._xkb = xkb
         self._allowed_mouse_buttons = (
             allowed_mouse_buttons
             if allowed_mouse_buttons is not None
             else set(MOUSE_TRIGGERS)
         )
-        self._pressed_modifiers = set()
         self._completed = False
 
     @property
@@ -178,19 +169,9 @@ class ShortcutCapture:
                 rejected_mouse_button,
             )
 
-        modifier = get_modifier(event)
-
-        if modifier is not None:
-            if event.value == 1:
-                self._pressed_modifiers.add(modifier)
-            elif event.value == 0:
-                self._pressed_modifiers.discard(modifier)
-
-            return None
-
         trigger = get_trigger(
             event,
-            self._keyboard_layout,
+            self._xkb,
         )
 
         if trigger is None:
@@ -201,7 +182,7 @@ class ShortcutCapture:
 
         shortcut = Shortcut(
             trigger=trigger,
-            modifiers=frozenset(self._pressed_modifiers),
+            modifiers=event.modifiers,
         )
 
         self._completed = True

@@ -79,6 +79,9 @@ def test_process_input_sends_keyboard_events():
     )
 
     state.capture_active = True
+    context.keyboard_state.get_modifiers.return_value = frozenset(
+        {"CTRL"},
+    )
 
     context.reader.get_watched_fds.return_value = [42]
     context.reader.read_ready.return_value = [
@@ -104,8 +107,41 @@ def test_process_input_sends_keyboard_events():
             "code": evdev.ecodes.KEY_A,
             "value": 1,
             "timestamp": 123.456,
+            "modifiers": ["CTRL"],
         }
     )
+
+
+def test_process_input_does_not_send_keyboard_event_without_modifier():
+    context, state = build_input_processing_context()
+
+    keyboard = build_keyboard()
+    event = build_input_event(
+        evdev.ecodes.EV_KEY,
+        evdev.ecodes.KEY_A,
+        1,
+    )
+
+    state.capture_active = True
+    context.keyboard_state.get_modifiers.return_value = frozenset()
+
+    context.reader.get_watched_fds.return_value = [42]
+    context.reader.read_ready.return_value = [
+        (keyboard, event),
+    ]
+
+    should_continue = process_input(
+        context,
+        state,
+        [42],
+        set(),
+        [],
+    )
+
+    assert should_continue is False
+
+    context.reader.read_ready.assert_called_once_with([42])
+    context.server.send_event.assert_not_called()
 
 
 def test_process_input_ignores_mouse_motion_events():
@@ -383,6 +419,9 @@ def test_process_input_processes_selected_events():
     )
 
     state.capture_active = True
+    context.keyboard_state.get_modifiers.return_value = frozenset(
+        {"CTRL"},
+    )
 
     should_continue = process_input(
         context,
@@ -403,6 +442,7 @@ def test_process_input_processes_selected_events():
             "code": evdev.ecodes.KEY_A,
             "value": 1,
             "timestamp": 123.456,
+            "modifiers": ["CTRL"],
         }
     )
 

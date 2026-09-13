@@ -506,26 +506,8 @@ class ShortcutsWindow(QDialog):
         self,
         shortcut: Shortcut,
     ) -> None:
-        """Handle a captured shortcut, including cancellation and duplicates."""
+        """Handle a captured shortcut and reject duplicates."""
         if self._capture_target is None:
-            return
-
-        if shortcut.trigger == "ESCAPE":
-            self._cancel_capture()
-            return
-
-        if shortcut.trigger == "BACKSPACE":
-            self._clear_target_shortcut()
-            return
-
-        if (
-            not shortcut.trigger.startswith("BTN_")
-            and not shortcut.modifiers
-        ):
-            self._show_capture_error(
-                "Un modificateur est requis"
-            )
-            self._duplicate_timer.start()
             return
 
         if self._is_shortcut_duplicate(
@@ -614,16 +596,17 @@ class ShortcutsWindow(QDialog):
             window_geometry.topLeft(),
         )
 
-    def keyPressEvent(
-        self,
-        event: QKeyEvent,
-    ) -> None:
-        if (
-            self._capture_active
-            and event.key() == Qt.Key.Key_Escape
-        ):
-            event.accept()
-            return
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._capture_active:
+            if event.key() == Qt.Key.Key_Escape:
+                self._cancel_capture()
+                event.accept()
+                return
+
+            if event.key() == Qt.Key.Key_Backspace:
+                self._clear_target_shortcut()
+                event.accept()
+                return
 
         super().keyPressEvent(event)
 

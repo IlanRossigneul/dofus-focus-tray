@@ -17,6 +17,7 @@ from helper.protocol import (
     EVENT_MOUSE_SELECTED_LOST,
     EVENT_SHORTCUT,
 )
+from helper.xkb import Xkb
 
 from .capture import (
     ShortcutCapture,
@@ -24,7 +25,6 @@ from .capture import (
     get_configured_mouse_buttons,
 )
 from .events import ShortcutEvent
-from .keyboard import KeyboardLayout
 from .model import Shortcut
 from .storage import ShortcutConfiguration
 
@@ -36,7 +36,7 @@ class ShortcutService:
 
     def __init__(
         self,
-        keyboard_layout: KeyboardLayout,
+        xkb: Xkb,
         configuration: dict[str, ShortcutConfiguration],
         on_action: Callable[[str], None],
         stop_requested: Callable[[], bool],
@@ -48,7 +48,7 @@ class ShortcutService:
         self._mouse_interception_enabled = True
         self._calibrated = False
 
-        self._keyboard_layout = keyboard_layout
+        self._xkb = xkb
 
         self._capture_lock = threading.RLock()
 
@@ -116,6 +116,7 @@ class ShortcutService:
             event_code=event["code"],
             value=event["value"],
             timestamp=event["timestamp"],
+            modifiers=frozenset(event.get("modifiers", [])),
         )
 
         self._process_capture_event(
@@ -304,7 +305,7 @@ class ShortcutService:
                 return
 
             self._capture = ShortcutCapture(
-                self._keyboard_layout,
+                self._xkb,
                 allowed_mouse_buttons=allowed_mouse_buttons,
             )
             self._capture_callback = callback

@@ -431,8 +431,21 @@ def _validate_shortcut_event(message: dict[str, Any]) -> None:
 def _validate_input_event(message: dict[str, Any]) -> None:
     _require_event_fields(
         message,
-        required={"type", "device_id", "code", "value", "timestamp"},
-        allowed={"type", "device_id", "code", "value", "timestamp"},
+        required={
+            "type",
+            "device_id",
+            "code",
+            "value",
+            "timestamp",
+        },
+        allowed={
+            "type",
+            "device_id",
+            "code",
+            "value",
+            "timestamp",
+            "modifiers",
+        },
     )
 
     _require_device_id(message)
@@ -450,6 +463,24 @@ def _validate_input_event(message: dict[str, Any]) -> None:
 
     if isinstance(timestamp, float) and not math.isfinite(timestamp):
         raise ProtocolError("Field 'timestamp' must be finite.")
+
+    modifiers = message.get("modifiers")
+
+    if modifiers is not None:
+        if not isinstance(modifiers, list):
+            raise ProtocolError(
+                "Field 'modifiers' must be an array.",
+            )
+
+        if any(not isinstance(modifier, str) for modifier in modifiers):
+            raise ProtocolError(
+                "Field 'modifiers' must contain only strings.",
+            )
+
+        if len(set(modifiers)) != len(modifiers):
+            raise ProtocolError(
+                "Field 'modifiers' contains duplicate entries.",
+            )
 
 
 def _validate_error(message: dict[str, Any]) -> None:

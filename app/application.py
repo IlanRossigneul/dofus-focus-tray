@@ -17,8 +17,8 @@ from bridge.bridge import (
 from bridge.kwin import KWinController
 from bridge.models import DofusFocusState
 from config.paths import ICON_DIR, SHORTCUTS_FILE
+from helper.xkb import Xkb
 from notifications.dofus_notifications import DofusNotificationManager
-from shortcuts.keyboard import KeyboardLayout
 from shortcuts.service import ShortcutService
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
 from ui.menu import MenuWidgets, create_menu
@@ -200,19 +200,17 @@ class Application:
 
     def _run_shortcuts(self) -> None:
         """Run the shortcut service in its dedicated thread."""
-        keyboard_layout = KeyboardLayout()
+        xkb = Xkb()
 
         try:
-            asyncio.run(
-                keyboard_layout.connect(),
-            )
+            xkb.load_wayland_keymap()
 
             configuration = ShortcutStorage(
                 SHORTCUTS_FILE,
             ).load()
 
             self.shortcut_service = ShortcutService(
-                keyboard_layout=keyboard_layout,
+                xkb=xkb,
                 configuration=configuration,
                 on_action=self._handle_shortcut_action,
                 stop_requested=self.shortcut_stop_event.is_set,
@@ -221,9 +219,7 @@ class Application:
             self.shortcut_service.run()
 
         finally:
-            asyncio.run(
-                keyboard_layout.close(),
-            )
+            xkb.close()
 
             self.shortcut_service = None
 

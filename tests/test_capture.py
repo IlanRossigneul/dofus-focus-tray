@@ -6,7 +6,7 @@ import evdev
 from shortcuts.capture import ShortcutCapture
 
 
-class FakeKeyboardLayout:
+class FakeXkb:
     """Provide deterministic keyboard layout translations for tests."""
 
     translations: ClassVar[dict[int, str]] = {
@@ -23,35 +23,57 @@ class FakeKeyboardLayout:
         return self.translations.get(keycode)
 
 
-def make_event(event_type, event_code, value):
+def make_event(
+    event_type,
+    event_code,
+    value,
+    modifiers=frozenset(),
+):
     return SimpleNamespace(
         event_type=event_type,
         event_code=event_code,
         value=value,
+        modifiers=modifiers,
     )
 
 
-def key_event(key, value):
+def key_event(
+    key,
+    value,
+    modifiers=frozenset(),
+):
     return make_event(
         evdev.ecodes.EV_KEY,
         key,
         value,
+        modifiers,
     )
 
 
 def make_capture():
-    return ShortcutCapture(FakeKeyboardLayout())
+    return ShortcutCapture(FakeXkb())
+
+
+def test_keyboard_input_without_modifier_is_processed():
+    capture = make_capture()
+
+    shortcut = capture.process_event(
+        key_event(evdev.ecodes.KEY_D, 1)
+    )
+
+    assert str(shortcut) == "D"
+    assert capture.completed is True
 
 
 def test_keyboard_shortcut_is_captured():
     capture = make_capture()
 
-    assert capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    ) is None
-
     shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
+        key_event(
+            evdev.ecodes.KEY_D,
+            1,
+            frozenset({"CTRL"}),
+        )
     )
 
     assert str(shortcut) == "CTRL + D"
@@ -61,45 +83,29 @@ def test_keyboard_shortcut_is_captured():
 def test_multiple_modifiers_are_captured():
     capture = make_capture()
 
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    )
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTALT, 1)
-    )
-
     shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
+        key_event(
+            evdev.ecodes.KEY_D,
+            1,
+            frozenset({"CTRL", "ALT"}),
+        )
     )
 
     assert str(shortcut) == "CTRL + ALT + D"
-
-
-def test_modifier_release_is_tracked():
-    capture = make_capture()
-
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    )
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 0)
-    )
-
-    shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
-    )
-
-    assert str(shortcut) == "D"
 
 
 def test_keyboard_layout_is_applied_to_trigger():
     capture = make_capture()
 
     shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_Q, 1)
+        key_event(
+            evdev.ecodes.KEY_Q,
+            1,
+            frozenset({"CTRL"}),
+        )
     )
 
-    assert str(shortcut) == "A"
+    assert str(shortcut) == "CTRL + A"
     assert shortcut.trigger == "A"
 
 
@@ -116,7 +122,11 @@ def test_multiple_azerty_translations_are_applied():
         capture = make_capture()
 
         shortcut = capture.process_event(
-            key_event(key, 1)
+            key_event(
+                key,
+                1,
+                frozenset({"CTRL"}),
+            )
         )
 
         assert shortcut.trigger == expected_key
@@ -125,15 +135,12 @@ def test_multiple_azerty_translations_are_applied():
 def test_azerty_trigger_with_modifiers_is_translated():
     capture = make_capture()
 
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    )
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTALT, 1)
-    )
-
     shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_Q, 1)
+        key_event(
+            evdev.ecodes.KEY_Q,
+            1,
+            frozenset({"CTRL", "ALT"}),
+        )
     )
 
     assert str(shortcut) == "CTRL + ALT + A"
@@ -148,20 +155,6 @@ def test_mouse_button_is_captured():
 
     assert str(shortcut) == "BTN_SIDE"
     assert capture.completed is True
-
-
-def test_mouse_button_with_modifier_is_captured():
-    capture = make_capture()
-
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    )
-
-    shortcut = capture.process_event(
-        key_event(evdev.ecodes.BTN_SIDE, 1)
-    )
-
-    assert str(shortcut) == "CTRL + BTN_SIDE"
 
 
 def test_mouse_motion_is_ignored():
@@ -180,12 +173,12 @@ def test_mouse_motion_is_ignored():
 def test_key_repeat_is_ignored():
     capture = make_capture()
 
-    capture.process_event(
-        key_event(evdev.ecodes.KEY_LEFTCTRL, 1)
-    )
-
     assert capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 2)
+        key_event(
+            evdev.ecodes.KEY_D,
+            2,
+            frozenset({"CTRL"}),
+        )
     ) is None
 
     assert capture.completed is False
@@ -195,14 +188,22 @@ def test_first_valid_trigger_completes_capture():
     capture = make_capture()
 
     shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
+        key_event(
+            evdev.ecodes.KEY_D,
+            1,
+            frozenset({"CTRL"}),
+        )
     )
 
-    assert str(shortcut) == "D"
+    assert str(shortcut) == "CTRL + D"
     assert capture.completed is True
 
     assert capture.process_event(
-        key_event(evdev.ecodes.KEY_E, 1)
+        key_event(
+            evdev.ecodes.KEY_E,
+            1,
+            frozenset({"CTRL"}),
+        )
     ) is None
 
 
@@ -210,9 +211,17 @@ def test_release_after_capture_is_ignored():
     capture = make_capture()
 
     capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
+        key_event(
+            evdev.ecodes.KEY_D,
+            1,
+            frozenset({"CTRL"}),
+        )
     )
 
     assert capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 0)
+        key_event(
+            evdev.ecodes.KEY_D,
+            0,
+            frozenset({"CTRL"}),
+        )
     ) is None

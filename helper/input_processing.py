@@ -53,7 +53,24 @@ def process_input(
             device.device_class == DeviceClass.KEYBOARD
             and event.type == evdev.ecodes.EV_KEY
         ):
+            context.keyboard_state.update(event)
+            context.xkb.update_key(
+                event.code,
+                event.value,
+            )
+
             if state.capture_active:
+                if event.value != 1:
+                    continue
+
+                if event.code in MODIFIER_KEY_NAMES:
+                    continue
+
+                modifiers = context.keyboard_state.get_modifiers()
+
+                if not modifiers:
+                    continue
+
                 context.server.send_event(
                     {
                         "type": EVENT_KEYBOARD_EVENT,
@@ -61,15 +78,10 @@ def process_input(
                         "code": event.code,
                         "value": event.value,
                         "timestamp": event.timestamp(),
+                        "modifiers": sorted(modifiers),
                     }
                 )
                 continue
-
-            context.keyboard_state.update(event)
-            context.xkb.update_key(
-                event.code,
-                event.value,
-            )
 
             if event.value != 1:
                 continue

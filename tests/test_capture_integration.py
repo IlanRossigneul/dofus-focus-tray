@@ -6,7 +6,7 @@ from shortcuts.capture import ShortcutCapture
 from shortcuts.events import ShortcutEvent
 
 
-class FakeKeyboardLayout:
+class FakeXkb:
     """Provide deterministic keyboard layout translations for tests."""
 
     translations: ClassVar[dict[int, str]] = {
@@ -19,32 +19,42 @@ class FakeKeyboardLayout:
 
 
 def make_capture():
-    return ShortcutCapture(FakeKeyboardLayout())
+    return ShortcutCapture(FakeXkb())
 
 
 def make_event(
     event_type: int,
     event_code: int,
     value: int,
+    modifiers: frozenset[str] = frozenset(),
 ) -> ShortcutEvent:
     return ShortcutEvent(
         event_type=event_type,
         event_code=event_code,
         value=value,
         timestamp=0.0,
+        modifiers=modifiers,
     )
 
 
 def test_keyboard_input_event_is_captured():
     capture = make_capture()
 
-    assert capture.process_event(
+    shortcut = capture.process_event(
         make_event(
             evdev.ecodes.EV_KEY,
-            evdev.ecodes.KEY_LEFTCTRL,
+            evdev.ecodes.KEY_D,
             1,
+            frozenset({"CTRL"}),
         )
-    ) is None
+    )
+
+    assert str(shortcut) == "CTRL + D"
+    assert capture.completed is True
+
+
+def test_keyboard_input_event_without_modifier_is_processed():
+    capture = make_capture()
 
     shortcut = capture.process_event(
         make_event(
@@ -54,7 +64,7 @@ def test_keyboard_input_event_is_captured():
         )
     )
 
-    assert str(shortcut) == "CTRL + D"
+    assert str(shortcut) == "D"
     assert capture.completed is True
 
 
@@ -70,29 +80,6 @@ def test_mouse_button_input_event_is_captured():
     )
 
     assert str(shortcut) == "BTN_SIDE"
-    assert capture.completed is True
-
-
-def test_mouse_button_with_keyboard_modifier_is_captured():
-    capture = make_capture()
-
-    capture.process_event(
-        make_event(
-            evdev.ecodes.EV_KEY,
-            evdev.ecodes.KEY_LEFTCTRL,
-            1,
-        )
-    )
-
-    shortcut = capture.process_event(
-        make_event(
-            evdev.ecodes.EV_KEY,
-            evdev.ecodes.BTN_EXTRA,
-            1,
-        )
-    )
-
-    assert str(shortcut) == "CTRL + BTN_EXTRA"
     assert capture.completed is True
 
 
@@ -132,10 +119,11 @@ def test_events_are_ignored_after_capture_is_completed():
             evdev.ecodes.EV_KEY,
             evdev.ecodes.KEY_D,
             1,
+            frozenset({"CTRL"}),
         )
     )
 
-    assert str(shortcut) == "D"
+    assert str(shortcut) == "CTRL + D"
     assert capture.completed is True
 
     assert capture.process_event(
@@ -143,5 +131,6 @@ def test_events_are_ignored_after_capture_is_completed():
             evdev.ecodes.EV_KEY,
             evdev.ecodes.KEY_E,
             1,
+            frozenset({"CTRL"}),
         )
     ) is None

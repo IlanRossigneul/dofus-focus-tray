@@ -1,9 +1,8 @@
-import asyncio
 import threading
 import time
 
 from config.paths import SHORTCUTS_FILE
-from shortcuts.keyboard import KeyboardLayout
+from helper.xkb import Xkb
 from shortcuts.service import ShortcutService
 from shortcuts.storage import ShortcutStorage
 
@@ -20,7 +19,7 @@ class CaptureTester:
         self._service_ready = threading.Event()
         self._capture_done = threading.Event()
 
-        self._keyboard_layout = KeyboardLayout()
+        self._xkb = Xkb()
         self._shortcut_service: ShortcutService | None = None
         self._shortcut_thread: threading.Thread | None = None
 
@@ -29,10 +28,8 @@ class CaptureTester:
         self._last_rejection: str | None = None
 
     def start(self) -> None:
-        """Start the keyboard layout and shortcut service."""
-        asyncio.run(
-            self._keyboard_layout.connect(),
-        )
+        """Start the XKB resources and shortcut service."""
+        self._xkb.load_wayland_keymap()
 
         configuration = ShortcutStorage(
             SHORTCUTS_FILE,
@@ -78,15 +75,13 @@ class CaptureTester:
             time.sleep(0.05)
 
     def stop(self) -> None:
-        """Stop the shortcut service and release the keyboard layout."""
+        """Stop the shortcut service and free the XKB resources."""
         self._stop_event.set()
 
         if self._shortcut_thread is not None:
             self._shortcut_thread.join()
 
-        asyncio.run(
-            self._keyboard_layout.close(),
-        )
+        self._xkb.close()
 
     def capture(self) -> None:
         """Capture and display one shortcut."""
@@ -172,7 +167,7 @@ class CaptureTester:
     ) -> None:
         """Create and run the shortcut service."""
         self._shortcut_service = ShortcutService(
-            keyboard_layout=self._keyboard_layout,
+            xkb=self._xkb,
             configuration=configuration,
             on_action=lambda _action: None,
             stop_requested=self._stop_event.is_set,
