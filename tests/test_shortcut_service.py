@@ -7,6 +7,8 @@ import evdev
 
 from app.helper_client import HelperClient, HelperClientError
 from helper.protocol import (
+    COMMAND_GRAB_SELECTED_MOUSE,
+    EVENT_ERROR,
     EVENT_MOUSE_INTERCEPTION_STARTED,
     EVENT_MOUSE_INTERCEPTION_STOPPED,
     EVENT_MOUSE_SELECTED,
@@ -1101,3 +1103,63 @@ def test_service_can_start_capture_again_after_helper_disconnect(
     assert service._capture_callback is callback
     assert service._capture_error_callback is error_callback
     assert service._capture_rejected_callback is rejected_callback
+
+
+def test_service_clears_mouse_grabbed_on_helper_grab_error(
+    caplog,
+):
+    service = make_service(
+        configuration={},
+    )
+
+    service._mouse_grabbed = True
+
+    with caplog.at_level("ERROR"):
+        service._handle_helper_event(
+            {
+                "type": EVENT_ERROR,
+                "code": "device_error",
+                "message": "Mouse is already grabbed.",
+                "command": COMMAND_GRAB_SELECTED_MOUSE,
+            },
+        )
+
+    assert service._mouse_grabbed is False
+    assert "Input helper error" in caplog.text
+
+
+def test_service_does_not_clear_mouse_grabbed_on_unrelated_helper_error():
+    service = make_service(
+        configuration={},
+    )
+
+    service._mouse_grabbed = True
+
+    service._handle_helper_event(
+        {
+            "type": EVENT_ERROR,
+            "code": "device_error",
+            "message": "Failed to read the selected mouse.",
+        },
+    )
+
+    assert service._mouse_grabbed is True
+
+
+def test_service_does_not_clear_mouse_grabbed_on_unrelated_command_error():
+    service = make_service(
+        configuration={},
+    )
+
+    service._mouse_grabbed = True
+
+    service._handle_helper_event(
+        {
+            "type": EVENT_ERROR,
+            "code": "invalid_argument",
+            "message": "Invalid shortcut configuration.",
+            "command": "set_shortcut_configuration",
+        },
+    )
+
+    assert service._mouse_grabbed is True

@@ -247,6 +247,7 @@ def test_start_mouse_interception_reports_failure_without_restoring_reader(
             "type": EVENT_ERROR,
             "code": ERROR_MOUSE_INTERCEPTION_FAILED,
             "message": "The selected mouse is already in use.",
+            "command": COMMAND_SET_MOUSE_INTERCEPTION,
         }
     )
 
@@ -470,6 +471,7 @@ def test_start_capture_rejects_command_before_input_monitoring():
             "type": EVENT_ERROR,
             "code": ERROR_HELPER_NOT_READY,
             "message": "Input monitoring is not active.",
+            "command": COMMAND_START_CAPTURE,
         }
     )
 
@@ -593,6 +595,7 @@ def test_set_shortcut_configuration_rejects_invalid_configuration():
             "type": EVENT_ERROR,
             "code": "invalid_argument",
             "message": "Keyboard shortcuts require at least one modifier.",
+            "command": COMMAND_SET_SHORTCUT_CONFIGURATION,
         }
     )
 
@@ -684,6 +687,7 @@ def test_grab_selected_mouse_command_handles_missing_or_failed_grab(
             "type": EVENT_ERROR,
             "code": ERROR_HELPER_NOT_READY,
             "message": "No mouse has been selected.",
+            "command": COMMAND_GRAB_SELECTED_MOUSE,
         }
     )
 
@@ -714,6 +718,7 @@ def test_grab_selected_mouse_command_handles_missing_or_failed_grab(
             "type": EVENT_ERROR,
             "code": ERROR_DEVICE_ERROR,
             "message": "Failed to grab the selected mouse.",
+            "command": COMMAND_GRAB_SELECTED_MOUSE,
         }
     )
 
@@ -747,6 +752,7 @@ def test_grab_selected_mouse_command_handles_mouse_already_in_use(
             "type": EVENT_ERROR,
             "code": ERROR_DEVICE_ERROR,
             "message": "The selected mouse is already in use.",
+            "command": COMMAND_GRAB_SELECTED_MOUSE,
         }
     )
 

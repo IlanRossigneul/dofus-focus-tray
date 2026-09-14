@@ -66,15 +66,19 @@ def send_error(
     server: HelperServer,
     code: str,
     message: str,
+    command: str | None = None,
 ) -> None:
     """Send a structured protocol error to the tray."""
-    server.send_event(
-        {
-            "type": EVENT_ERROR,
-            "code": code,
-            "message": message,
-        }
-    )
+    payload = {
+        "type": EVENT_ERROR,
+        "code": code,
+        "message": message,
+    }
+
+    if command is not None:
+        payload["command"] = command
+
+    server.send_event(payload)
 
 
 def stop_input_monitoring(
@@ -326,6 +330,7 @@ def _handle_start_capture(
             context.server,
             ERROR_HELPER_NOT_READY,
             "Input monitoring is not active.",
+            COMMAND_START_CAPTURE,
         )
         return
 
@@ -401,6 +406,7 @@ def _handle_grab_selected_mouse(
             context.server,
             ERROR_HELPER_NOT_READY,
             "No mouse has been selected.",
+            COMMAND_GRAB_SELECTED_MOUSE,
         )
         return
 
@@ -427,6 +433,7 @@ def _handle_grab_selected_mouse(
             context.server,
             ERROR_DEVICE_ERROR,
             "Failed to grab the selected mouse.",
+            COMMAND_GRAB_SELECTED_MOUSE,
         )
         return
 
@@ -437,6 +444,7 @@ def _handle_grab_selected_mouse(
             context.server,
             ERROR_DEVICE_ERROR,
             "The selected mouse is already in use.",
+            COMMAND_GRAB_SELECTED_MOUSE,
         )
         return
 
@@ -487,6 +495,7 @@ def _enable_mouse_interception(
             context.server,
             ERROR_HELPER_NOT_READY,
             "No mouse has been selected.",
+            COMMAND_SET_MOUSE_INTERCEPTION,
         )
         return
 
@@ -498,6 +507,7 @@ def _enable_mouse_interception(
             context.server,
             ERROR_HELPER_NOT_READY,
             "Mouse must be grabbed before interception.",
+            COMMAND_SET_MOUSE_INTERCEPTION,
         )
         return
 
@@ -528,6 +538,7 @@ def _enable_mouse_interception(
             context.server,
             ERROR_MOUSE_INTERCEPTION_FAILED,
             "Failed to start mouse interception.",
+            COMMAND_SET_MOUSE_INTERCEPTION,
         )
         return
 
@@ -536,6 +547,7 @@ def _enable_mouse_interception(
             context.server,
             ERROR_MOUSE_INTERCEPTION_FAILED,
             "The selected mouse is already in use.",
+            COMMAND_SET_MOUSE_INTERCEPTION,
         )
         return
 
@@ -610,6 +622,7 @@ def _handle_shortcut_configuration(
             context.server,
             ERROR_INVALID_ARGUMENT,
             str(error),
+            COMMAND_SET_SHORTCUT_CONFIGURATION,
         )
         return
 

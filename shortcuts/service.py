@@ -8,6 +8,8 @@ import evdev
 
 from app.helper_client import HelperClient, HelperClientError
 from helper.protocol import (
+    COMMAND_GRAB_SELECTED_MOUSE,
+    EVENT_ERROR,
     EVENT_KEYBOARD_EVENT,
     EVENT_MOUSE_BUTTON_EVENT,
     EVENT_MOUSE_INTERCEPTION_STARTED,
@@ -72,6 +74,10 @@ class ShortcutService:
     ) -> None:
         """Handle an event received from the input helper."""
         event_type = event["type"]
+
+        if event_type == EVENT_ERROR:
+            self._handle_helper_error(event)
+            return
 
         if event_type == EVENT_KEYBOARD_EVENT:
             self._handle_helper_keyboard_event(event)
@@ -153,6 +159,25 @@ class ShortcutService:
 
         if not self._stop_requested():
             logger.error("Input helper connection lost")
+
+    def _handle_helper_error(
+        self,
+        event: dict[str, Any],
+    ) -> None:
+        """Handle an error reported by the input helper."""
+
+        command = event.get("command")
+
+        if command == COMMAND_GRAB_SELECTED_MOUSE:
+            with self._mouse_state_lock:
+                self._mouse_grabbed = False
+
+        logger.error(
+            "Input helper error: code=%s command=%s message=%s",
+            event["code"],
+            command,
+            event["message"],
+        )
 
     def _handle_helper_mouse_selected(
         self,

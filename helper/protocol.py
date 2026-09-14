@@ -487,7 +487,7 @@ def _validate_error(message: dict[str, Any]) -> None:
     _require_event_fields(
         message,
         required={"type", "code", "message"},
-        allowed={"type", "code", "message"},
+        allowed={"type", "code", "message", "command"},
     )
 
     if not isinstance(message["code"], str):
@@ -498,6 +498,13 @@ def _validate_error(message: dict[str, Any]) -> None:
 
     if not isinstance(message["message"], str):
         raise ProtocolError("Field 'message' must be a string.")
+
+    command = message.get("command")
+
+    if command is not None and command not in COMMANDS:
+        raise ProtocolError(
+            f"Unknown error command: {message['command']}."
+        )
 
 
 def validate_command(message: Any) -> dict[str, Any]:
