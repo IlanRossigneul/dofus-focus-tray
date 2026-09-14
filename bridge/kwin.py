@@ -90,7 +90,10 @@ class KWinController:
                             str(script_id),
                         )
                     except Exception:
-                        logger.debug("Failed to unload KWin script", exc_info=True)
+                        logger.debug(
+                            "Failed to unload KWin script",
+                            exc_info=True,
+                        )
 
                 if temp_path and os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -112,6 +115,7 @@ class KWinController:
         enabled: bool = True,
     ) -> None:
         """Set or clear the KeepAbove state for a window by PID."""
+
         js_code = f"""
         var windows = workspace.windowList();
 
@@ -129,6 +133,7 @@ class KWinController:
 
         temp_path = None
         kwin_bus = None
+        script_id = None
 
         try:
             with tempfile.NamedTemporaryFile(
@@ -162,13 +167,22 @@ class KWinController:
                 temp_path,
             )
 
-            await scripting.call_start()
+            try:
+                await scripting.call_start()
 
-            await asyncio.sleep(0.2)
+                await asyncio.sleep(0.2)
 
-            await scripting.call_unload_script(
-                str(script_id),
-            )
+            finally:
+                if script_id is not None:
+                    try:
+                        await scripting.call_unload_script(
+                            str(script_id),
+                        )
+                    except Exception:
+                        logger.debug(
+                            "Failed to unload KWin keepAbove script",
+                            exc_info=True,
+                        )
 
         except Exception:
             logger.exception("Failed to set window keepAbove")

@@ -252,6 +252,117 @@ def test_activate_window_removes_script_on_failure():
     )
 
 
+def test_set_window_keep_above_loads_starts_and_unloads_script():
+    controller = KWinController()
+    bus, proxy_object, scripting = create_kwin_mocks()
+
+    bus.connect = AsyncMock(return_value=bus)
+    bus.disconnect = MagicMock()
+
+    temp_file = MagicMock()
+    temp_file.name = "/tmp/test-kwin-script.js"
+    temp_file.__enter__.return_value = temp_file
+
+    with (
+        patch(
+            "bridge.kwin.MessageBus",
+            return_value=bus,
+        ),
+        patch(
+            "bridge.kwin.tempfile.NamedTemporaryFile",
+            return_value=temp_file,
+        ),
+        patch(
+            "bridge.kwin.asyncio.sleep",
+            new=AsyncMock(),
+        ) as sleep,
+        patch(
+            "bridge.kwin.os.path.exists",
+            return_value=True,
+        ),
+        patch(
+            "bridge.kwin.os.remove",
+        ) as remove,
+    ):
+        asyncio.run(
+            controller.set_window_keep_above(
+                pid=12345,
+                enabled=True,
+            )
+        )
+
+    bus.connect.assert_awaited_once()
+    bus.introspect.assert_awaited_once()
+    bus.get_proxy_object.assert_called_once()
+    proxy_object.get_interface.assert_called_once()
+
+    scripting.call_load_script.assert_awaited_once_with(
+        "/tmp/test-kwin-script.js"
+    )
+    scripting.call_start.assert_awaited_once()
+    sleep.assert_awaited_once_with(0.2)
+    scripting.call_unload_script.assert_awaited_once_with("42")
+
+    script = temp_file.write.call_args.args[0]
+
+    assert "if (window.pid !== 12345)" in script
+    assert "window.keepAbove = true;" in script
+
+    remove.assert_called_once_with(
+        "/tmp/test-kwin-script.js"
+    )
+    bus.disconnect.assert_called_once()
+
+
+def test_set_window_keep_above_unloads_script_when_start_fails():
+    controller = KWinController()
+    bus, _, scripting = create_kwin_mocks()
+
+    bus.connect = AsyncMock(return_value=bus)
+    bus.disconnect = MagicMock()
+    scripting.call_start = AsyncMock(
+        side_effect=RuntimeError("KWin script failure")
+    )
+
+    temp_file = MagicMock()
+    temp_file.name = "/tmp/test-kwin-script.js"
+    temp_file.__enter__.return_value = temp_file
+
+    with (
+        patch(
+            "bridge.kwin.MessageBus",
+            return_value=bus,
+        ),
+        patch(
+            "bridge.kwin.tempfile.NamedTemporaryFile",
+            return_value=temp_file,
+        ),
+        patch(
+            "bridge.kwin.os.path.exists",
+            return_value=True,
+        ),
+        patch(
+            "bridge.kwin.os.remove",
+        ) as remove,
+    ):
+        asyncio.run(
+            controller.set_window_keep_above(
+                pid=12345,
+            )
+        )
+
+    scripting.call_load_script.assert_awaited_once_with(
+        "/tmp/test-kwin-script.js"
+    )
+    scripting.call_start.assert_awaited_once()
+    scripting.call_unload_script.assert_awaited_once_with("42")
+
+    remove.assert_called_once_with(
+        "/tmp/test-kwin-script.js"
+    )
+    bus.disconnect.assert_called_once()
+
+
 def test_close_disconnects_bus():
     controller = KWinController()
     bus = MagicMock()
