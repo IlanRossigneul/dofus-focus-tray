@@ -16,16 +16,26 @@ MODIFIER_KEYS = {
 }
 
 
-MOUSE_TRIGGERS = {
-    evdev.ecodes.BTN_SIDE: "BTN_SIDE",
-    evdev.ecodes.BTN_EXTRA: "BTN_EXTRA",
+MOUSE_BUTTON_CODES = {
+    value
+    for name, value in vars(evdev.ecodes).items()
+    if name.startswith("BTN_") and isinstance(value, int)
 }
-
 
 IGNORED_MOUSE_BUTTONS = {
     evdev.ecodes.BTN_LEFT,
     evdev.ecodes.BTN_RIGHT,
     evdev.ecodes.BTN_MIDDLE,
+}
+
+MOUSE_TRIGGERS = {
+    button: name
+    for name, button in vars(evdev.ecodes).items()
+    if (
+        name.startswith("BTN_")
+        and isinstance(button, int)
+        and button not in IGNORED_MOUSE_BUTTONS
+    )
 }
 
 
@@ -52,21 +62,21 @@ def get_rejected_mouse_button(
     if event.value != 1:
         return None
 
-    mouse_buttons = {
-        evdev.ecodes.BTN_LEFT: "BTN_LEFT",
-        evdev.ecodes.BTN_MIDDLE: "BTN_MIDDLE",
-        evdev.ecodes.BTN_RIGHT: "BTN_RIGHT",
-        evdev.ecodes.BTN_SIDE: "BTN_SIDE",
-        evdev.ecodes.BTN_EXTRA: "BTN_EXTRA",
-    }
-
-    if event.event_code not in mouse_buttons:
+    if event.event_code not in MOUSE_BUTTON_CODES:
         return None
 
     if event.event_code in allowed_mouse_buttons:
         return None
 
-    return mouse_buttons[event.event_code]
+    button_name = evdev.ecodes.bytype[evdev.ecodes.EV_KEY].get(
+        event.event_code,
+        f"BTN_{event.event_code}",
+    )
+
+    if isinstance(button_name, tuple):
+        return button_name[0]
+
+    return button_name
 
 
 def get_trigger(

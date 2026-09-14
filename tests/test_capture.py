@@ -2,8 +2,12 @@ from types import SimpleNamespace
 from typing import ClassVar
 
 import evdev
+import pytest
 
-from shortcuts.capture import ShortcutCapture
+from shortcuts.capture import (
+    ShortcutCapture,
+    ShortcutCaptureRejected,
+)
 
 
 class FakeXkb:
@@ -152,6 +156,57 @@ def test_mouse_button_is_captured():
     )
 
     assert str(shortcut) == "BTN_SIDE"
+
+
+def test_other_mouse_button_is_captured():
+    capture = make_capture()
+
+    shortcut = capture.process_event(
+        key_event(evdev.ecodes.BTN_FORWARD, 1)
+    )
+
+    assert str(shortcut) == "BTN_FORWARD"
+
+
+@pytest.mark.parametrize(
+    "button_name",
+    (
+        "BTN_LEFT",
+        "BTN_MIDDLE",
+        "BTN_RIGHT",
+    ),
+)
+def test_forbidden_mouse_buttons_are_rejected(button_name):
+    capture = make_capture()
+
+    button = getattr(evdev.ecodes, button_name)
+
+    with pytest.raises(
+        ShortcutCaptureRejected,
+        match=button_name,
+    ) as error:
+        capture.process_event(
+            key_event(button, 1)
+        )
+
+    assert error.value.trigger == button_name
+
+
+def test_mouse_button_outside_allowed_set_is_rejected():
+    capture = ShortcutCapture(
+        FakeXkb(),
+        allowed_mouse_buttons={evdev.ecodes.BTN_SIDE},
+    )
+
+    with pytest.raises(
+        ShortcutCaptureRejected,
+        match="BTN_FORWARD",
+    ) as error:
+        capture.process_event(
+            key_event(evdev.ecodes.BTN_FORWARD, 1)
+        )
+
+    assert error.value.trigger == "BTN_FORWARD"
 
 
 def test_mouse_motion_is_ignored():
