@@ -53,9 +53,8 @@ class CalibrationController:
             if window.uuid in live_uuids
         ]
 
-        for order, window in enumerate(self._calibrated_windows):
+        for window in self._calibrated_windows:
             window.position = new_windows.index(window.uuid)
-            window.calibrated_order = order
 
         if (
             self._calibrating
