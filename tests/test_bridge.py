@@ -2,6 +2,8 @@ import asyncio
 import json
 from unittest.mock import AsyncMock
 
+import pytest
+
 from bridge.bridge import DofusFocusBridge
 
 
@@ -605,3 +607,44 @@ def test_update_active_window_after_calibrated_window_disappears_does_not_notify
     assert already_selected == []
     assert bridge._calibration.calibrating is False
     assert bridge._calibration.calibrated is False
+
+
+def test_update_windows_rejects_invalid_json():
+    bridge = create_bridge()
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid windows JSON",
+    ):
+        bridge.update_windows("{invalid")
+
+
+def test_update_windows_rejects_non_list_json():
+    bridge = create_bridge()
+
+    with pytest.raises(
+        TypeError,
+        match="Windows data must be a list",
+    ):
+        bridge.update_windows(json.dumps({"window": "window-1"}))
+
+
+def test_update_windows_rejects_non_string_window_ids():
+    bridge = create_bridge()
+
+    with pytest.raises(
+        TypeError,
+        match="Windows data must contain only strings",
+    ):
+        bridge.update_windows(
+            json.dumps(["window-1", 123]),
+        )
+
+
+def test_update_windows_accepts_empty_list():
+    bridge = create_bridge()
+
+    bridge.update_windows(json.dumps([]))
+
+    assert bridge._windows.windows == []
+    assert bridge._calibration.total_windows == 0

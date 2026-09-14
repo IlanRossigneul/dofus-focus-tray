@@ -207,7 +207,16 @@ class DofusFocusBridge(ServiceInterface):
     @method()
     def update_windows(self, windows_json: "s") -> None:
         """Update the list of live Dofus windows."""
-        windows = json.loads(windows_json)
+        try:
+            windows = json.loads(windows_json)
+        except json.JSONDecodeError as error:
+            raise ValueError("Invalid windows JSON") from error
+
+        if not isinstance(windows, list):
+            raise TypeError("Windows data must be a list")
+
+        if not all(isinstance(window, str) for window in windows):
+            raise TypeError("Windows data must contain only strings")
 
         previous_windows = set(
             self._windows.windows,
