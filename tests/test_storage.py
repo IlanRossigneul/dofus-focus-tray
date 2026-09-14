@@ -226,3 +226,177 @@ def test_load_rejects_non_dictionary_action_configuration(tmp_path):
         match="Invalid configuration for action",
     ):
         storage.load()
+
+
+def test_save_replaces_existing_file_atomically(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    storage = ShortcutStorage(path)
+
+    storage.save({})
+
+    configurations = {
+        "calibration": ShortcutConfiguration(
+            primary=Shortcut(
+                trigger="F1",
+                modifiers=frozenset({"CTRL"}),
+            ),
+        ),
+    }
+
+    storage.save(configurations)
+
+    assert storage.load() == configurations
+    assert not path.with_suffix(".json.tmp").exists()
+
+
+def test_load_rejects_non_dictionary_shortcut(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": "invalid",
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Invalid shortcut data",
+    ):
+        storage.load()
+
+
+def test_load_rejects_shortcut_without_trigger(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "modifiers": ["CTRL"]
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        ValueError,
+        match="missing trigger",
+    ):
+        storage.load()
+
+
+def test_load_rejects_non_string_trigger(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": 123,
+                    "modifiers": []
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Invalid shortcut trigger",
+    ):
+        storage.load()
+
+
+def test_load_rejects_non_list_modifiers(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": "F1",
+                    "modifiers": "CTRL"
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Invalid shortcut modifiers",
+    ):
+        storage.load()
+
+
+def test_load_rejects_non_string_modifier(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": "F1",
+                    "modifiers": ["CTRL", 123]
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Invalid shortcut modifiers",
+    ):
+        storage.load()
+
+
+def test_load_accepts_shortcut_without_modifiers(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": "F1"
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    assert storage.load() == {
+        "calibration": ShortcutConfiguration(
+            primary=Shortcut(
+                trigger="F1",
+            ),
+        ),
+    }

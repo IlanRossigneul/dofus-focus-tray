@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -75,7 +76,11 @@ class ShortcutStorage:
             for name, configuration in configurations.items()
         }
 
-        with self._path.open("w", encoding="utf-8") as file:
+        temporary_path = self._path.with_suffix(
+            f"{self._path.suffix}.tmp",
+        )
+
+        with temporary_path.open("w", encoding="utf-8") as file:
             json.dump(
                 data,
                 file,
@@ -83,6 +88,11 @@ class ShortcutStorage:
                 ensure_ascii=False,
             )
             file.write("\n")
+
+        os.replace(
+            temporary_path,
+            self._path,
+        )
 
     @staticmethod
     def _serialize_shortcut(
@@ -107,7 +117,39 @@ class ShortcutStorage:
         if data is None:
             return None
 
+        if not isinstance(data, dict):
+            raise TypeError(
+                "Invalid shortcut data.",
+            )
+
+        if "trigger" not in data:
+            raise ValueError(
+                "Invalid shortcut data: missing trigger.",
+            )
+
+        trigger = data["trigger"]
+
+        if not isinstance(trigger, str):
+            raise TypeError(
+                "Invalid shortcut trigger.",
+            )
+
+        modifiers = data.get("modifiers", [])
+
+        if not isinstance(modifiers, list):
+            raise TypeError(
+                "Invalid shortcut modifiers.",
+            )
+
+        if not all(
+            isinstance(modifier, str)
+            for modifier in modifiers
+        ):
+            raise TypeError(
+                "Invalid shortcut modifiers.",
+            )
+
         return Shortcut(
-            trigger=data["trigger"],
-            modifiers=frozenset(data.get("modifiers", [])),
+            trigger=trigger,
+            modifiers=frozenset(modifiers),
         )
