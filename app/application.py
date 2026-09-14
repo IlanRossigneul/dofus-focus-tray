@@ -217,7 +217,8 @@ class Application:
             )
 
             self.shortcut_service.run()
-
+        except Exception:
+            logger.exception("Shortcut thread failed")
         finally:
             xkb.close()
 

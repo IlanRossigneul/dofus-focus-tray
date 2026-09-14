@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import Mock
 
 from app.application import Application
@@ -162,3 +163,31 @@ def test_application_notifies_first_calibration_step_when_active_window_is_alrea
         step=1,
         summary=None,
     )
+
+
+def test_run_shortcuts_logs_failure_and_cleans_up_xkb(
+    monkeypatch,
+    caplog,
+):
+    application = Application()
+
+    xkb = Mock()
+
+    def fail_load():
+        raise RuntimeError("test failure")
+
+    xkb.load_wayland_keymap.side_effect = fail_load
+
+    monkeypatch.setattr(
+        "app.application.Xkb",
+        Mock(return_value=xkb),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        application._run_shortcuts()
+
+    xkb.close.assert_called_once_with()
+    assert application.shortcut_service is None
+
+    assert "Shortcut thread failed" in caplog.text
+    assert "test failure" in caplog.text
