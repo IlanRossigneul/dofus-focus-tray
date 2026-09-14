@@ -1001,3 +1001,103 @@ def test_service_keeps_configuration_when_helper_update_fails(
     service.update_configuration(new_configuration)
 
     assert service._configuration == new_configuration
+
+
+def test_service_clears_capture_state_on_helper_disconnect():
+    service = make_service()
+
+    capture = object()
+    callback = lambda _shortcut: None
+    error_callback = lambda _error: None
+    rejected_callback = lambda _reason: None
+
+    service._capture = capture
+    service._capture_callback = callback
+    service._capture_error_callback = error_callback
+    service._capture_rejected_callback = rejected_callback
+
+    service._handle_helper_disconnect()
+
+    assert service._capture is None
+    assert service._capture_callback is None
+    assert service._capture_error_callback is None
+    assert service._capture_rejected_callback is None
+
+
+def test_service_clears_capture_state_when_helper_capture_stop_fails(
+    monkeypatch,
+    caplog,
+):
+    service = make_service()
+
+    capture = object()
+    callback = lambda _shortcut: None
+    error_callback = lambda _error: None
+    rejected_callback = lambda _reason: None
+
+    service._capture = capture
+    service._capture_callback = callback
+    service._capture_error_callback = error_callback
+    service._capture_rejected_callback = rejected_callback
+
+    def fail():
+        raise HelperClientError
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "stop_capture",
+        fail,
+    )
+    monkeypatch.setattr(
+        service,
+        "_sync_helper_mouse_interception",
+        lambda: None,
+    )
+
+    with caplog.at_level("WARNING"):
+        service.stop_capture()
+
+    assert service._capture is None
+    assert service._capture_callback is None
+    assert service._capture_error_callback is None
+    assert service._capture_rejected_callback is None
+
+    assert "Unable to stop input helper capture cleanly" in caplog.text
+
+
+def test_service_can_start_capture_again_after_helper_disconnect(
+    monkeypatch,
+):
+    service = make_service()
+
+    service._capture = object()
+    service._capture_callback = lambda _shortcut: None
+    service._capture_error_callback = lambda _error: None
+    service._capture_rejected_callback = lambda _reason: None
+
+    service._handle_helper_disconnect()
+
+    start_calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "start_capture",
+        start_calls.append,
+    )
+
+    callback = lambda _shortcut: None
+    error_callback = lambda _error: None
+    rejected_callback = lambda _reason: None
+
+    service.start_capture(
+        allowed_mouse_buttons=None,
+        callback=callback,
+        error_callback=error_callback,
+        rejected_callback=rejected_callback,
+    )
+
+    assert start_calls == [None]
+    assert service._capture is not None
+    assert service._capture_callback is callback
+    assert service._capture_error_callback is error_callback
+    assert service._capture_rejected_callback is rejected_callback

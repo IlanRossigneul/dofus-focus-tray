@@ -148,6 +148,9 @@ class ShortcutService:
 
     def _handle_helper_disconnect(self) -> None:
         """Handle an unexpected input helper disconnection."""
+
+        self._clear_capture()
+
         if not self._stop_requested():
             logger.error("Input helper connection lost")
 
@@ -291,6 +294,15 @@ class ShortcutService:
         self._mouse_interception_enabled = enabled
         self._sync_helper_mouse_interception()
 
+    def _clear_capture(self) -> None:
+        """Clear the local shortcut capture state."""
+
+        with self._capture_lock:
+            self._capture = None
+            self._capture_callback = None
+            self._capture_error_callback = None
+            self._capture_rejected_callback = None
+
     def start_capture(
         self,
         allowed_mouse_buttons: set[int] | None,
@@ -334,13 +346,8 @@ class ShortcutService:
             logger.warning(
                 "Unable to stop input helper capture cleanly",
             )
-            return
-
-        with self._capture_lock:
-            self._capture = None
-            self._capture_callback = None
-            self._capture_error_callback = None
-            self._capture_rejected_callback = None
+        finally:
+            self._clear_capture()
 
         self._sync_helper_mouse_interception()
 
