@@ -29,6 +29,9 @@ class ShortcutStorage:
         with self._path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
+        if not isinstance(data, dict):
+            raise TypeError("Shortcut configuration data must be a dictionary.")
+
         configurations = {}
 
         for name, configuration in data.items():

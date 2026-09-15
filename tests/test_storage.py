@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from shortcuts.model import Shortcut
@@ -400,3 +402,27 @@ def test_load_accepts_shortcut_without_modifiers(tmp_path):
             ),
         ),
     }
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        [],
+        None,
+        "invalid",
+    ],
+)
+def test_load_rejects_non_dictionary_root(tmp_path, data):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        TypeError,
+        match="Shortcut configuration data must be a dictionary.",
+    ):
+        storage.load()
