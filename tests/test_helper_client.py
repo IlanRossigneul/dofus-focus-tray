@@ -206,6 +206,68 @@ def test_connect_fails_when_handshake_times_out(
         server_socket.close()
 
 
+def test_disconnect_resets_current_connection():
+    disconnected = threading.Event()
+
+    def on_disconnect():
+        disconnected.set()
+
+    client = HelperClient(
+        on_disconnect=on_disconnect,
+    )
+    socket_a = socket.socket()
+
+    try:
+        with client._state_lock:
+            client._socket = socket_a
+            client._connected = True
+            client._ready = True
+
+        client._ready_event.set()
+
+        client._handle_disconnect(socket_a)
+
+        assert client._socket is None
+        assert not client._connected
+        assert not client._ready
+        assert not client._ready_event.is_set()
+        assert disconnected.is_set()
+    finally:
+        socket_a.close()
+
+
+def test_stale_connection_cannot_disconnect_current_connection():
+    disconnected = threading.Event()
+
+    def on_disconnect():
+        disconnected.set()
+
+    client = HelperClient(
+        on_disconnect=on_disconnect,
+    )
+    socket_a = socket.socket()
+    socket_b = socket.socket()
+
+    try:
+        with client._state_lock:
+            client._socket = socket_b
+            client._connected = True
+            client._ready = True
+
+        client._ready_event.set()
+
+        client._handle_disconnect(socket_a)
+
+        assert client._socket is socket_b
+        assert client._connected
+        assert client._ready
+        assert client._ready_event.is_set()
+        assert not disconnected.is_set()
+    finally:
+        socket_a.close()
+        socket_b.close()
+
+
 def test_commands_require_completed_handshake(tmp_path):
     client = HelperClient(
         socket_path=str(tmp_path / "helper.sock"),
@@ -1003,10 +1065,13 @@ def test_send_command_translates_socket_error_and_disconnects(
 
     disconnect_called = threading.Event()
 
+    def handle_disconnect(_client):
+        disconnect_called.set()
+
     monkeypatch.setattr(
         client,
         "_handle_disconnect",
-        disconnect_called.set,
+        handle_disconnect,
     )
 
     class FailingSocket:

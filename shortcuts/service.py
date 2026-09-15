@@ -32,6 +32,8 @@ from .storage import ShortcutConfiguration
 
 logger = logging.getLogger(__name__)
 
+HELPER_RECONNECT_DELAY = 0.5
+
 
 class ShortcutService:
     """Monitor input devices and execute configured shortcut actions."""
@@ -156,6 +158,10 @@ class ShortcutService:
         """Handle an unexpected input helper disconnection."""
 
         self._clear_capture()
+
+        with self._mouse_state_lock:
+            self._selected_mouse = None
+            self._mouse_grabbed = False
 
         if not self._stop_requested():
             logger.error("Input helper connection lost")
@@ -516,17 +522,36 @@ class ShortcutService:
         """Keep the input helper connection active until monitoring is stopped."""
 
         try:
-            self._helper_client.connect()
-            self._helper_client.start()
-
-            self._helper_client.set_shortcut_configuration(
-                self._serialize_configuration(
-                    self._configuration,
-                ),
-            )
-
             while not self._stop_requested():
-                time.sleep(0.1)
+                try:
+                    self._helper_client.connect()
+                    self._helper_client.start()
+
+                    self._helper_client.set_shortcut_configuration(
+                        self._serialize_configuration(
+                            self._configuration,
+                        ),
+                    )
+                except HelperClientError:
+                    if self._stop_requested():
+                        break
+
+                    logger.error(
+                        "Unable to connect to input helper; retrying",
+                    )
+                    time.sleep(HELPER_RECONNECT_DELAY)
+                    continue
+
+                while (
+                    not self._stop_requested()
+                    and self._helper_client.is_ready()
+                ):
+                    time.sleep(0.1)
+
+                if self._stop_requested():
+                    break
+
+                time.sleep(HELPER_RECONNECT_DELAY)
 
         finally:
             try:

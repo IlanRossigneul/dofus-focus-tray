@@ -1005,27 +1005,6 @@ def test_service_keeps_configuration_when_helper_update_fails(
     assert service._configuration == new_configuration
 
 
-def test_service_clears_capture_state_on_helper_disconnect():
-    service = make_service()
-
-    capture = object()
-    callback = lambda _shortcut: None
-    error_callback = lambda _error: None
-    rejected_callback = lambda _reason: None
-
-    service._capture = capture
-    service._capture_callback = callback
-    service._capture_error_callback = error_callback
-    service._capture_rejected_callback = rejected_callback
-
-    service._handle_helper_disconnect()
-
-    assert service._capture is None
-    assert service._capture_callback is None
-    assert service._capture_error_callback is None
-    assert service._capture_rejected_callback is None
-
-
 def test_service_clears_capture_state_when_helper_capture_stop_fails(
     monkeypatch,
     caplog,
@@ -1163,3 +1142,512 @@ def test_service_does_not_clear_mouse_grabbed_on_unrelated_command_error():
     )
 
     assert service._mouse_grabbed is True
+
+
+def test_service_resets_helper_state_on_disconnect():
+    service = make_service()
+
+    service._selected_mouse = "mouse-1"
+    service._mouse_grabbed = True
+    service._capture = object()
+    service._capture_callback = lambda _shortcut: None
+    service._capture_error_callback = lambda _error: None
+    service._capture_rejected_callback = lambda _reason: None
+
+    service._handle_helper_disconnect()
+
+    assert service._selected_mouse is None
+    assert not service._mouse_grabbed
+    assert service._capture is None
+    assert service._capture_callback is None
+    assert service._capture_error_callback is None
+    assert service._capture_rejected_callback is None
+
+
+def test_service_run_starts_helper_with_current_configuration(
+    monkeypatch,
+):
+    configuration = make_configuration()
+    service = make_service(configuration=configuration)
+
+    calls = []
+    stop = threading.Event()
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "connect",
+        lambda: calls.append("connect"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "start",
+        lambda: calls.append("start"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        lambda configuration: calls.append(
+            ("configuration", configuration),
+        ),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "is_ready",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "stop",
+        lambda: calls.append("stop"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "disconnect",
+        lambda: calls.append("disconnect"),
+    )
+
+    service._stop_requested = stop.is_set
+
+    thread = threading.Thread(target=service.run)
+    thread.start()
+
+    for _ in range(100):
+        if calls[:3] == [
+            "connect",
+            "start",
+            (
+                "configuration",
+                service._serialize_configuration(configuration),
+            ),
+        ]:
+            break
+        time.sleep(0.01)
+
+    stop.set()
+    thread.join(timeout=1)
+
+    assert calls[:3] == [
+        "connect",
+        "start",
+        (
+            "configuration",
+            service._serialize_configuration(configuration),
+        ),
+    ]
+    assert "stop" in calls
+    assert "disconnect" in calls
+
+
+def test_service_run_reconnects_after_helper_disconnect(
+    monkeypatch,
+):
+    configuration = make_configuration()
+    service = make_service(configuration=configuration)
+
+    calls = []
+    stop = threading.Event()
+    first_connection = threading.Event()
+    second_connection = threading.Event()
+    helper_ready = threading.Event()
+
+    connection_count = 0
+
+    def connect():
+        nonlocal connection_count
+
+        connection_count += 1
+        calls.append("connect")
+
+        helper_ready.set()
+
+        if connection_count == 1:
+            first_connection.set()
+        else:
+            second_connection.set()
+
+    def start():
+        calls.append("start")
+
+    def set_shortcut_configuration(configuration):
+        calls.append(
+            (
+                "configuration",
+                configuration,
+            ),
+        )
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "connect",
+        connect,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "start",
+        start,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        set_shortcut_configuration,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "is_ready",
+        helper_ready.is_set,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "stop",
+        lambda: calls.append("stop"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "disconnect",
+        lambda: calls.append("disconnect"),
+    )
+
+    service._stop_requested = stop.is_set
+
+    thread = threading.Thread(target=service.run)
+    thread.start()
+
+    try:
+        assert first_connection.wait(timeout=1)
+
+        expected_configuration = service._serialize_configuration(
+            configuration,
+        )
+
+        assert calls[:3] == [
+            "connect",
+            "start",
+            ("configuration", expected_configuration),
+        ]
+
+        helper_ready.clear()
+        service._handle_helper_disconnect()
+
+        assert second_connection.wait(timeout=2)
+
+        assert calls[:6] == [
+            "connect",
+            "start",
+            ("configuration", expected_configuration),
+            "connect",
+            "start",
+            ("configuration", expected_configuration),
+        ]
+    finally:
+        stop.set()
+        thread.join(timeout=1)
+
+    assert not thread.is_alive()
+    assert calls[-2:] == [
+        "stop",
+        "disconnect",
+    ]
+
+
+def test_service_run_replays_latest_configuration_after_helper_reconnect(
+    monkeypatch,
+):
+    initial_configuration = make_configuration()
+    service = make_service(
+        configuration=initial_configuration,
+    )
+
+    updated_configuration = {
+        "calibration": ShortcutConfiguration(
+            primary=make_shortcut("F2", ["CTRL"]),
+        ),
+        "next": ShortcutConfiguration(
+            primary=make_shortcut("N", ["ALT"]),
+        ),
+        "previous": ShortcutConfiguration(
+            primary=make_shortcut("P", ["SHIFT"]),
+        ),
+    }
+
+    calls = []
+    stop = threading.Event()
+    first_connection = threading.Event()
+    second_connection = threading.Event()
+    helper_ready = threading.Event()
+
+    connection_count = 0
+
+    def connect():
+        nonlocal connection_count
+
+        connection_count += 1
+        calls.append("connect")
+
+        helper_ready.set()
+
+        if connection_count == 1:
+            first_connection.set()
+        else:
+            second_connection.set()
+
+    def start():
+        calls.append("start")
+
+    def set_shortcut_configuration(configuration):
+        calls.append(
+            (
+                "configuration",
+                configuration,
+            ),
+        )
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "connect",
+        connect,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "start",
+        start,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        set_shortcut_configuration,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "is_ready",
+        helper_ready.is_set,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "stop",
+        lambda: calls.append("stop"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "disconnect",
+        lambda: calls.append("disconnect"),
+    )
+
+    service._stop_requested = stop.is_set
+
+    thread = threading.Thread(target=service.run)
+    thread.start()
+
+    try:
+        assert first_connection.wait(timeout=1)
+
+        initial_serialized = service._serialize_configuration(
+            initial_configuration,
+        )
+
+        assert calls[:3] == [
+            "connect",
+            "start",
+            ("configuration", initial_serialized),
+        ]
+
+        helper_ready.clear()
+        service._handle_helper_disconnect()
+
+        service._configuration = updated_configuration
+
+        assert second_connection.wait(timeout=2)
+
+        updated_serialized = service._serialize_configuration(
+            updated_configuration,
+        )
+
+        assert calls[:6] == [
+            "connect",
+            "start",
+            ("configuration", initial_serialized),
+            "connect",
+            "start",
+            ("configuration", updated_serialized),
+        ]
+    finally:
+        stop.set()
+        thread.join(timeout=1)
+
+    assert not thread.is_alive()
+
+
+def test_service_run_retries_when_helper_is_unavailable(
+    monkeypatch,
+):
+    configuration = make_configuration()
+    service = make_service(configuration=configuration)
+
+    calls = []
+    stop = threading.Event()
+    helper_available = threading.Event()
+
+    connection_attempts = 0
+
+    def connect():
+        nonlocal connection_attempts
+
+        connection_attempts += 1
+        calls.append("connect")
+
+        if connection_attempts == 1:
+            raise HelperClientError(
+                "Helper unavailable",
+            )
+
+        helper_available.set()
+
+    def start():
+        calls.append("start")
+
+    def set_shortcut_configuration(configuration):
+        calls.append(
+            (
+                "configuration",
+                configuration,
+            ),
+        )
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "connect",
+        connect,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "start",
+        start,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "set_shortcut_configuration",
+        set_shortcut_configuration,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "is_ready",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "stop",
+        lambda: calls.append("stop"),
+    )
+    monkeypatch.setattr(
+        service._helper_client,
+        "disconnect",
+        lambda: calls.append("disconnect"),
+    )
+
+    service._stop_requested = stop.is_set
+
+    thread = threading.Thread(target=service.run)
+    thread.start()
+
+    try:
+        for _ in range(100):
+            if helper_available.is_set():
+                break
+
+            time.sleep(0.01)
+
+        assert helper_available.is_set()
+
+        expected_configuration = service._serialize_configuration(
+            configuration,
+        )
+
+        assert calls[:4] == [
+            "connect",
+            "connect",
+            "start",
+            ("configuration", expected_configuration),
+        ]
+    finally:
+        stop.set()
+        thread.join(timeout=1)
+
+    assert not thread.is_alive()
+
+
+def test_service_resyncs_mouse_state_after_helper_disconnect(
+    monkeypatch,
+):
+    service = make_service(
+        configuration={
+            "next": ShortcutConfiguration(
+                primary=make_shortcut("BTN_SIDE"),
+            ),
+        },
+    )
+
+    service._calibrated = True
+    service._mouse_interception_enabled = True
+
+    grab_calls = []
+    button_calls = []
+    interception_calls = []
+
+    monkeypatch.setattr(
+        service._helper_client,
+        "grab_selected_mouse",
+        lambda: grab_calls.append(True),
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_intercepted_mouse_buttons",
+        button_calls.append,
+    )
+    monkeypatch.setattr(
+        service,
+        "_set_helper_mouse_interception",
+        interception_calls.append,
+    )
+
+    mouse_selected_event = {
+        "type": EVENT_MOUSE_SELECTED,
+        "device_id": "mouse-1",
+    }
+
+    service._handle_helper_event(mouse_selected_event)
+
+    assert service._selected_mouse == "mouse-1"
+    assert service._mouse_grabbed is True
+    assert grab_calls == [
+        True,
+    ]
+    assert button_calls == [
+        {evdev.ecodes.BTN_SIDE},
+        {evdev.ecodes.BTN_SIDE},
+    ]
+    assert interception_calls == [
+        True,
+    ]
+
+    service._handle_helper_disconnect()
+
+    assert service._selected_mouse is None
+    assert service._mouse_grabbed is False
+
+    service._handle_helper_event(mouse_selected_event)
+
+    assert service._selected_mouse == "mouse-1"
+    assert service._mouse_grabbed is True
+    assert grab_calls == [
+        True,
+        True,
+    ]
+    assert button_calls == [
+        {evdev.ecodes.BTN_SIDE},
+        {evdev.ecodes.BTN_SIDE},
+        {evdev.ecodes.BTN_SIDE},
+        {evdev.ecodes.BTN_SIDE},
+    ]
+    assert interception_calls == [
+        True,
+        True,
+    ]

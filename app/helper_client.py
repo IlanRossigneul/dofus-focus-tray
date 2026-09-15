@@ -88,6 +88,7 @@ class HelperClient:
 
         self._receive_thread = threading.Thread(
             target=self._receive_loop,
+            args=(client,),
             name="HelperClient",
             daemon=True,
         )
@@ -253,19 +254,17 @@ class HelperClient:
             ) from error
 
         except OSError as error:
-            self._handle_disconnect()
+            self._handle_disconnect(client)
 
             raise HelperClientError(
                 "Communication with the input helper failed.",
             ) from error
 
-    def _receive_loop(self) -> None:
+    def _receive_loop(
+        self,
+        client: socket.socket,
+    ) -> None:
         """Receive and dispatch events from the helper."""
-        client = self._get_socket()
-
-        if client is None:
-            return
-
         buffer = bytearray()
 
         try:
@@ -315,7 +314,7 @@ class HelperClient:
 
         finally:
             if not self._stop_event.is_set():
-                self._handle_disconnect()
+                self._handle_disconnect(client)
 
     def _handle_event(
         self,
@@ -334,10 +333,13 @@ class HelperClient:
         if self._on_event is not None:
             self._on_event(event)
 
-    def _handle_disconnect(self) -> None:
+    def _handle_disconnect(
+        self,
+        client: socket.socket,
+    ) -> None:
         """Reset the connection after an unexpected disconnect."""
         with self._state_lock:
-            if not self._connected:
+            if client is not self._socket:
                 return
 
             self._socket = None
