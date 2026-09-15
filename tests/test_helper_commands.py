@@ -6,6 +6,7 @@ from helper.commands import (
     HelperContext,
     build_input_policy,
     handle_command,
+    reset_client_state,
 )
 from helper.policy import ShortcutAction
 from helper.protocol import (
@@ -765,3 +766,15 @@ def test_handle_command_returns_false_for_unknown_command():
         context,
         state,
     ) is False
+
+
+def test_reset_client_state_clears_intercepted_mouse_buttons():
+    context, state = build_command_context()
+    state.intercepted_mouse_buttons = {
+        evdev.ecodes.BTN_SIDE,
+        evdev.ecodes.BTN_EXTRA,
+    }
+
+    reset_client_state(context, state)
+
+    assert state.intercepted_mouse_buttons == set()

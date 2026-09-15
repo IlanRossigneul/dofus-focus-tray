@@ -208,6 +208,8 @@ def reset_client_state(
         state.mouse_interceptor,
     )
 
+    state.intercepted_mouse_buttons.clear()
+
     if state.mouse_grabber is not None:
         state.mouse_grabber.stop()
         state.mouse_grabber = None
