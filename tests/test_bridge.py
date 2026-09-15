@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -648,3 +649,65 @@ def test_update_windows_accepts_empty_list():
 
     assert bridge._windows.windows == []
     assert bridge._calibration.total_windows == 0
+
+
+def test_activate_window_schedules_kwin_activation():
+    bridge = create_bridge()
+    bridge._kwin.activate_window = AsyncMock()
+
+    async def run() -> None:
+        bridge.activate_window("window-1")
+        await asyncio.sleep(0)
+
+    asyncio.run(run())
+
+    bridge._kwin.activate_window.assert_awaited_once_with("window-1")
+
+
+def test_activate_window_logs_exception(caplog):
+    bridge = create_bridge()
+    bridge._kwin.activate_window = AsyncMock(
+        side_effect=RuntimeError("activation failed"),
+    )
+
+    async def run() -> None:
+        bridge.activate_window("window-1")
+        await asyncio.sleep(0)
+
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(run())
+
+    bridge._kwin.activate_window.assert_awaited_once_with("window-1")
+    assert "Failed to activate Dofus window: uuid=window-1" in caplog.text
+    assert "activation failed" in caplog.text
+
+
+def test_dofus_focus_schedules_focus():
+    bridge = create_bridge()
+    bridge._focus.focus = AsyncMock()
+
+    async def run() -> None:
+        bridge.dofus_focus(1)
+        await asyncio.sleep(0)
+
+    asyncio.run(run())
+
+    bridge._focus.focus.assert_awaited_once_with(1)
+
+
+def test_dofus_focus_logs_exception(caplog):
+    bridge = create_bridge()
+    bridge._focus.focus = AsyncMock(
+        side_effect=RuntimeError("focus failed"),
+    )
+
+    async def run() -> None:
+        bridge.dofus_focus(1)
+        await asyncio.sleep(0)
+
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(run())
+
+    bridge._focus.focus.assert_awaited_once_with(1)
+    assert "Failed to focus Dofus windows: direction=1" in caplog.text
+    assert "focus failed" in caplog.text

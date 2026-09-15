@@ -135,11 +135,28 @@ class DofusFocusBridge(ServiceInterface):
         if self._on_new_window is not None:
             self._on_new_window()
 
+    async def _activate_window(self, uuid: str) -> None:
+        """Activate a Dofus window by its UUID."""
+        try:
+            await self._kwin.activate_window(uuid)
+        except Exception:
+            logger.exception(
+                "Failed to activate Dofus window: uuid=%s",
+                uuid,
+            )
+
     async def _focus_direction(self, direction: int) -> None:
         """Focus the next or previous calibrated Dofus window."""
         previous_index = self._focus.current_index
 
-        await self._focus.focus(direction)
+        try:
+            await self._focus.focus(direction)
+        except Exception:
+            logger.exception(
+                "Failed to focus Dofus windows: direction=%s",
+                direction,
+            )
+            return
 
         if self._focus.current_index != previous_index:
             self._notify_state_changed()
@@ -440,23 +457,15 @@ class DofusFocusBridge(ServiceInterface):
     @method()
     def activate_window(self, uuid: "s") -> None:
         """Activate a Dofus window through KWin."""
-        logger.debug(
-            "Activating window: uuid=%s",
-            uuid,
-        )
-
+        logger.debug("Activating window: uuid=%s", uuid)
         asyncio.create_task(
-            self._kwin.activate_window(uuid),
+            self._activate_window(uuid),
         )
 
     @method()
     def dofus_focus(self, direction: "i") -> None:
         """Focus the next or previous calibrated Dofus window."""
-        logger.debug(
-            "Dofus focus: direction=%s",
-            direction,
-        )
-
+        logger.debug("Dofus focus: direction=%s", direction)
         asyncio.create_task(
             self._focus_direction(direction),
         )
