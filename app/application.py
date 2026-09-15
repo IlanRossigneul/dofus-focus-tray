@@ -6,7 +6,7 @@ import threading
 
 from dbus_next.aio import MessageBus
 from KStatusNotifierItem import KStatusNotifierItem
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QLockFile, QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 from bridge.bridge import (
@@ -16,7 +16,7 @@ from bridge.bridge import (
 )
 from bridge.kwin import KWinController
 from bridge.models import DofusFocusState
-from config.paths import ICON_DIR, SHORTCUTS_FILE
+from config.paths import ICON_DIR, INSTANCE_LOCK_FILE, SHORTCUTS_FILE
 from helper.xkb import Xkb
 from notifications.dofus_notifications import DofusNotificationManager
 from shortcuts.service import ShortcutService
@@ -64,6 +64,9 @@ class Application:
 
         self.icon_dir = ICON_DIR
 
+        self._instance_lock = QLockFile(str(INSTANCE_LOCK_FILE))
+        self._instance_lock.setStaleLockTime(0)
+
     def _parse_args(
         self,
         args: list[str],
@@ -94,6 +97,17 @@ class Application:
             if parsed.log_level is not None
             else logging.INFO
         )
+
+    def _acquire_instance_lock(self) -> bool:
+        """Acquire the application instance lock."""
+
+        if self._instance_lock.tryLock(0):
+            return True
+
+        logger.warning(
+            "Another Dofus Focus Tray instance is already running.",
+        )
+        return False
 
     def _create_status_view(
         self,
@@ -378,6 +392,9 @@ class Application:
         """Start the application and run the Qt event loop."""
         log_level = self._parse_args(args)
         setup_logger(log_level)
+
+        if not self._acquire_instance_lock():
+            return 0
 
         app = QApplication.instance()
 
