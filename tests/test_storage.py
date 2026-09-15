@@ -238,6 +238,29 @@ def test_load_rejects_non_dictionary_action_configuration(tmp_path):
         storage.load()
 
 
+def test_load_rejects_unknown_action(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "foobar": {
+                "primary": null,
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    with pytest.raises(
+        ValueError,
+        match="Unknown shortcut action",
+    ):
+        storage.load()
+
+
 def test_save_replaces_existing_file_atomically(tmp_path):
     path = tmp_path / "shortcuts.json"
     storage = ShortcutStorage(path)

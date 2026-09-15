@@ -44,6 +44,11 @@ class ShortcutStorage:
             raise TypeError("Shortcut configuration data must be a dictionary.")
 
         for name, configuration in data.items():
+            if name not in REQUIRED_ACTIONS:
+                raise ValueError(
+                    f"Unknown shortcut action: {name}.",
+                )
+
             if not isinstance(configuration, dict):
                 raise TypeError(
                     f"Invalid configuration for action: {name}.",
