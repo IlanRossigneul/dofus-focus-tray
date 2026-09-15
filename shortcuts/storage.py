@@ -5,6 +5,12 @@ from pathlib import Path
 
 from .model import Shortcut
 
+REQUIRED_ACTIONS = (
+    "calibration",
+    "next",
+    "previous",
+)
+
 
 @dataclass
 class ShortcutConfiguration:
@@ -23,16 +29,19 @@ class ShortcutStorage:
     def load(self) -> dict[str, ShortcutConfiguration]:
         """Load shortcut configurations from the storage file."""
 
+        configurations = {
+            name: ShortcutConfiguration()
+            for name in REQUIRED_ACTIONS
+        }
+
         if not self._path.exists():
-            return {}
+            return configurations
 
         with self._path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
         if not isinstance(data, dict):
             raise TypeError("Shortcut configuration data must be a dictionary.")
-
-        configurations = {}
 
         for name, configuration in data.items():
             if not isinstance(configuration, dict):

@@ -165,20 +165,11 @@ class ShortcutsWindow(QDialog):
     def _load_configurations(
         self,
     ) -> dict[str, ShortcutConfiguration]:
-        """Load stored configurations and ensure required actions exist."""
-        configurations = self._storage.load()
+        """Load stored configurations."""
 
-        for name in (
-            "calibration",
-            "next",
-            "previous",
-        ):
-            configurations.setdefault(
-                name,
-                ShortcutConfiguration(),
-            )
-
-        return copy.deepcopy(configurations)
+        return copy.deepcopy(
+            self._storage.load(),
+        )
 
     def _build_ui(self) -> None:
         """Build the shortcut configuration interface."""

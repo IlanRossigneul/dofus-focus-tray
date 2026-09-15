@@ -6,12 +6,16 @@ from shortcuts.model import Shortcut
 from shortcuts.storage import ShortcutConfiguration, ShortcutStorage
 
 
-def test_load_returns_empty_configuration_when_file_does_not_exist(tmp_path):
+def test_load_returns_empty_configurations_when_file_does_not_exist(tmp_path):
     storage = ShortcutStorage(
         tmp_path / "shortcuts.json",
     )
 
-    assert storage.load() == {}
+    assert storage.load() == {
+        "calibration": ShortcutConfiguration(),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
+    }
 
 
 def test_save_creates_storage_file(tmp_path):
@@ -37,6 +41,8 @@ def test_save_and_load_shortcut_configuration(tmp_path):
                 trigger="BTN_SIDE",
             ),
         ),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
     }
 
     storage.save(configurations)
@@ -52,6 +58,8 @@ def test_save_and_load_configuration_without_shortcuts(tmp_path):
 
     configurations = {
         "calibration": ShortcutConfiguration(),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
     }
 
     storage.save(configurations)
@@ -243,6 +251,8 @@ def test_save_replaces_existing_file_atomically(tmp_path):
                 modifiers=frozenset({"CTRL"}),
             ),
         ),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
     }
 
     storage.save(configurations)
@@ -401,6 +411,8 @@ def test_load_accepts_shortcut_without_modifiers(tmp_path):
                 trigger="F1",
             ),
         ),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
     }
 
 
@@ -426,3 +438,34 @@ def test_load_rejects_non_dictionary_root(tmp_path, data):
         match="Shortcut configuration data must be a dictionary.",
     ):
         storage.load()
+
+
+def test_load_adds_missing_required_configurations(tmp_path):
+    path = tmp_path / "shortcuts.json"
+    path.write_text(
+        """
+        {
+            "calibration": {
+                "primary": {
+                    "trigger": "D",
+                    "modifiers": ["CTRL"]
+                },
+                "alternate": null
+            }
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    storage = ShortcutStorage(path)
+
+    assert storage.load() == {
+        "calibration": ShortcutConfiguration(
+            primary=Shortcut(
+                trigger="D",
+                modifiers=frozenset({"CTRL"}),
+            ),
+        ),
+        "next": ShortcutConfiguration(),
+        "previous": ShortcutConfiguration(),
+    }
