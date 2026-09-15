@@ -106,12 +106,14 @@ def test_save_and_load_shortcut_with_multiple_modifiers(tmp_path):
 
     shortcut = Shortcut(
         trigger="D",
-        modifiers=frozenset({
-            "CTRL",
-            "ALT",
-            "SHIFT",
-            "META",
-        }),
+        modifiers=frozenset(
+            {
+                "CTRL",
+                "ALT",
+                "SHIFT",
+                "META",
+            }
+        ),
     )
 
     configurations = {

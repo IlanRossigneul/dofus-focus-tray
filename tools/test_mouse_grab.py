@@ -82,8 +82,7 @@ class MouseGrabTester:
     def wait_for_mouse(self) -> bool:
         """Wait for the helper to select a mouse from real input activity."""
         print(
-            f"Move the mouse within the next "
-            f"{SELECTION_TIMEOUT} seconds...",
+            f"Move the mouse within the next {SELECTION_TIMEOUT} seconds...",
         )
 
         if not self._mouse_selected.wait(SELECTION_TIMEOUT):
@@ -200,8 +199,7 @@ class MouseGrabTester:
 
         if self._helper_error is not None:
             print(
-                "ERROR: Mouse interception failed: "
-                f"{self._helper_error}",
+                f"ERROR: Mouse interception failed: {self._helper_error}",
             )
             return False
 

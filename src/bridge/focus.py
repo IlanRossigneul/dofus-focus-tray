@@ -48,9 +48,7 @@ class FocusController:
         calibrated_windows = self._calibration.calibrated_windows
 
         candidates = [
-            window
-            for window in calibrated_windows
-            if window.uuid in live_windows
+            window for window in calibrated_windows if window.uuid in live_windows
         ]
 
         if not candidates:

@@ -87,9 +87,7 @@ def test_focus_ignores_when_not_calibrated():
 def test_focus_ignores_invalid_direction():
     focus, windows, calibration, kwin = create_controller()
 
-    windows.update_windows(
-        ["window-1", "window-2", "window-3"]
-    )
+    windows.update_windows(["window-1", "window-2", "window-3"])
     calibrate_windows(
         calibration,
         ["window-1", "window-2", "window-3"],

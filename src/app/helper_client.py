@@ -133,10 +133,7 @@ class HelperClient:
 
         thread = self._receive_thread
 
-        if (
-            thread is not None
-            and thread is not threading.current_thread()
-        ):
+        if thread is not None and thread is not threading.current_thread():
             thread.join()
 
         self._receive_thread = None
@@ -288,9 +285,9 @@ class HelperClient:
                         break
 
                     line = bytes(
-                        buffer[:separator + 1],
+                        buffer[: separator + 1],
                     )
-                    del buffer[:separator + 1]
+                    del buffer[: separator + 1]
 
                     try:
                         event = decode_event(line)

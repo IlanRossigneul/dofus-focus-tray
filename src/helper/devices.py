@@ -32,10 +32,7 @@ class DeviceRegistry:
     ]:
         """Reconcile discovered devices with the current registry."""
 
-        current_by_path = {
-            info.path: info
-            for info in infos
-        }
+        current_by_path = {info.path: info for info in infos}
 
         added = []
         removed = []

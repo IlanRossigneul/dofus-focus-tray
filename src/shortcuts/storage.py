@@ -29,10 +29,7 @@ class ShortcutStorage:
     def load(self) -> dict[str, ShortcutConfiguration]:
         """Load shortcut configurations from the storage file."""
 
-        configurations = {
-            name: ShortcutConfiguration()
-            for name in REQUIRED_ACTIONS
-        }
+        configurations = {name: ShortcutConfiguration() for name in REQUIRED_ACTIONS}
 
         if not self._path.exists():
             return configurations
@@ -158,10 +155,7 @@ class ShortcutStorage:
                 "Invalid shortcut modifiers.",
             )
 
-        if not all(
-            isinstance(modifier, str)
-            for modifier in modifiers
-        ):
+        if not all(isinstance(modifier, str) for modifier in modifiers):
             raise TypeError(
                 "Invalid shortcut modifiers.",
             )

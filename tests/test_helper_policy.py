@@ -211,15 +211,9 @@ def test_get_mouse_action() -> None:
 
     policy = InputPolicy.from_configuration(configuration)
 
-    assert (
-        policy.get_mouse_action(evdev.ecodes.BTN_EXTRA)
-        == ShortcutAction.NEXT
-    )
+    assert policy.get_mouse_action(evdev.ecodes.BTN_EXTRA) == ShortcutAction.NEXT
 
-    assert (
-        policy.get_mouse_action(evdev.ecodes.BTN_SIDE)
-        is None
-    )
+    assert policy.get_mouse_action(evdev.ecodes.BTN_SIDE) is None
 
 
 def test_mouse_shortcut_cannot_have_modifiers() -> None:

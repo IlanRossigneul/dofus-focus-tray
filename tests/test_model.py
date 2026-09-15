@@ -34,6 +34,4 @@ def test_shortcut_string_orders_altgr_modifier():
         {"shift", "meta", "ctrl", "alt", "altgr"},
     )
 
-    assert str(shortcut) == (
-        "CTRL + ALT + ALTGR + SHIFT + META + D"
-    )
+    assert str(shortcut) == ("CTRL + ALT + ALTGR + SHIFT + META + D")

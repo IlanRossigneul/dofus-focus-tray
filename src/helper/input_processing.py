@@ -34,11 +34,7 @@ def process_input(
     input_fds = [
         fd
         for fd in readable
-        if (
-            isinstance(fd, int)
-            and fd in reader_fds
-            and fd not in new_reader_fds
-        )
+        if (isinstance(fd, int) and fd in reader_fds and fd not in new_reader_fds)
     ]
 
     input_events = list(selected_events)
@@ -197,20 +193,14 @@ def process_input(
 
                     continue
 
-                if (
-                    event.type == evdev.ecodes.EV_KEY
-                    and event.value in (0, 1)
-                ):
+                if event.type == evdev.ecodes.EV_KEY and event.value in (0, 1):
                     logger.debug(
                         "Mouse button event: code=%s value=%s.",
                         event.code,
                         event.value,
                     )
 
-                if (
-                    event.type == evdev.ecodes.EV_KEY
-                    and event.value == 1
-                ):
+                if event.type == evdev.ecodes.EV_KEY and event.value == 1:
                     action = state.input_policy.get_mouse_action(
                         event.code,
                     )
@@ -233,13 +223,9 @@ def process_input(
                     event,
                 )
 
-                if (
-                    event.type == evdev.ecodes.EV_KEY
-                    and event.value in (0, 1)
-                ):
+                if event.type == evdev.ecodes.EV_KEY and event.value in (0, 1):
                     logger.debug(
-                        "Mouse event forwarding: code=%s value=%s "
-                        "intercepted=%s.",
+                        "Mouse event forwarding: code=%s value=%s intercepted=%s.",
                         event.code,
                         event.value,
                         intercepted,

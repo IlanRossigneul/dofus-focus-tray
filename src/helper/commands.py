@@ -101,22 +101,14 @@ def get_mouse_devices(
     devices: list[HelperDevice],
 ) -> list[HelperDevice]:
     """Return currently discovered mouse devices."""
-    return [
-        device
-        for device in devices
-        if device.device_class == DeviceClass.MOUSE
-    ]
+    return [device for device in devices if device.device_class == DeviceClass.MOUSE]
 
 
 def get_keyboard_devices(
     devices: list[HelperDevice],
 ) -> list[HelperDevice]:
     """Return currently discovered keyboard devices."""
-    return [
-        device
-        for device in devices
-        if device.device_class == DeviceClass.KEYBOARD
-    ]
+    return [device for device in devices if device.device_class == DeviceClass.KEYBOARD]
 
 
 def start_mouse_interceptor(
@@ -311,10 +303,7 @@ def _handle_start(
     )
 
     if not context.mouse_selector.is_active():
-        state.next_mouse_discovery = (
-            time.monotonic()
-            + MOUSE_DISCOVERY_RETRY_DELAY
-        )
+        state.next_mouse_discovery = time.monotonic() + MOUSE_DISCOVERY_RETRY_DELAY
     else:
         state.next_mouse_discovery = None
 
@@ -344,8 +333,7 @@ def _handle_start_capture(
         state.mouse_interceptor = None
 
     if state.selected_mouse is not None and (
-        state.mouse_grabber is None
-        or not state.mouse_grabber.is_started()
+        state.mouse_grabber is None or not state.mouse_grabber.is_started()
     ):
         context.reader.add_device(state.selected_mouse)
 
@@ -412,10 +400,7 @@ def _handle_grab_selected_mouse(
         )
         return
 
-    if (
-        state.mouse_grabber is not None
-        and state.mouse_grabber.is_started()
-    ):
+    if state.mouse_grabber is not None and state.mouse_grabber.is_started():
         return
 
     state.mouse_grabber = MouseGrabber(
@@ -501,10 +486,7 @@ def _enable_mouse_interception(
         )
         return
 
-    if (
-        state.mouse_grabber is None
-        or not state.mouse_grabber.is_started()
-    ):
+    if state.mouse_grabber is None or not state.mouse_grabber.is_started():
         send_error(
             context.server,
             ERROR_HELPER_NOT_READY,
@@ -513,10 +495,7 @@ def _enable_mouse_interception(
         )
         return
 
-    if (
-        state.mouse_interceptor is not None
-        and state.mouse_interceptor.is_started()
-    ):
+    if state.mouse_interceptor is not None and state.mouse_interceptor.is_started():
         return
 
     context.reader.remove_device(
@@ -586,19 +565,11 @@ def _handle_intercepted_mouse_buttons(
     state: HelperState,
 ) -> None:
     """Handle the SET_INTERCEPTED_MOUSE_BUTTONS command."""
-    configured_mouse_buttons = {
-        rule.button
-        for rule in state.input_policy.mouse_rules
-    }
+    configured_mouse_buttons = {rule.button for rule in state.input_policy.mouse_rules}
 
-    state.intercepted_mouse_buttons = (
-        set(command["buttons"]) & configured_mouse_buttons
-    )
+    state.intercepted_mouse_buttons = set(command["buttons"]) & configured_mouse_buttons
 
-    if (
-        state.mouse_interceptor is not None
-        and state.mouse_interceptor.is_started()
-    ):
+    if state.mouse_interceptor is not None and state.mouse_interceptor.is_started():
         state.mouse_interceptor.update_intercepted_buttons(
             state.intercepted_mouse_buttons,
         )

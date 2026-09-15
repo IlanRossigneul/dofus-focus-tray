@@ -92,11 +92,7 @@ class Application:
 
         parsed = parser.parse_args(args)
 
-        return (
-            parsed.log_level
-            if parsed.log_level is not None
-            else logging.INFO
-        )
+        return parsed.log_level if parsed.log_level is not None else logging.INFO
 
     def _acquire_instance_lock(self) -> bool:
         """Acquire the application instance lock."""
@@ -189,10 +185,7 @@ class Application:
         action: str,
     ) -> None:
         """Dispatch a shortcut action to the D-Bus bridge."""
-        if (
-            self.bridge is None
-            or self.dbus_loop is None
-        ):
+        if self.bridge is None or self.dbus_loop is None:
             return
 
         if action == "calibration":
@@ -250,10 +243,7 @@ class Application:
         self.shortcut_thread.start()
 
     def _request_calibration(self) -> None:
-        if (
-            self.bridge is None
-            or self.dbus_loop is None
-        ):
+        if self.bridge is None or self.dbus_loop is None:
             return
 
         self.dbus_loop.call_soon_threadsafe(
@@ -313,10 +303,7 @@ class Application:
             )
 
     def _stop_dbus(self) -> None:
-        if (
-            self.dbus_loop is None
-            or self.dbus_stop_event is None
-        ):
+        if self.dbus_loop is None or self.dbus_stop_event is None:
             return
 
         self.dbus_loop.call_soon_threadsafe(
@@ -337,9 +324,7 @@ class Application:
                 self.signals.calibration_already_selected.emit
             ),
             on_new_window=self.signals.new_window_detected.emit,
-            on_calibration_cancelled=(
-                self.signals.calibration_cancelled.emit
-            ),
+            on_calibration_cancelled=(self.signals.calibration_cancelled.emit),
         )
 
         self.bus.export(

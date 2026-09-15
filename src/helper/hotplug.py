@@ -57,9 +57,7 @@ def process_keyboard_selector(
     context: HelperContext,
     state: HelperState,
     readable: list[int | socket.socket],
-    selected_events: list[
-        tuple[HelperDevice, evdev.InputEvent]
-    ],
+    selected_events: list[tuple[HelperDevice, evdev.InputEvent]],
 ) -> set[int]:
     """Process the keyboard selector."""
     new_reader_fds: set[int] = set()
@@ -74,9 +72,7 @@ def process_keyboard_selector(
         )
 
         ready_selector_fds = [
-            fd
-            for fd in readable
-            if isinstance(fd, int) and fd in selector_fds
+            fd for fd in readable if isinstance(fd, int) and fd in selector_fds
         ]
 
         selected = context.keyboard_selector.process_ready(
@@ -95,10 +91,7 @@ def process_keyboard_selector(
 
             context.reader.add_device(selected_keyboard)
 
-            selected_events.extend(
-                (selected_keyboard, event)
-                for event in events
-            )
+            selected_events.extend((selected_keyboard, event) for event in events)
 
             context.server.send_event(
                 {
@@ -108,8 +101,7 @@ def process_keyboard_selector(
             )
 
             new_reader_fds = (
-                set(context.reader.get_watched_fds())
-                - reader_fds_before_selection
+                set(context.reader.get_watched_fds()) - reader_fds_before_selection
             )
 
     return new_reader_fds
@@ -120,9 +112,7 @@ def process_mouse_selector(
     state: HelperState,
     readable: list[int | socket.socket],
     selector_timeout: float | None,
-    selected_events: list[
-        tuple[HelperDevice, evdev.InputEvent]
-    ],
+    selected_events: list[tuple[HelperDevice, evdev.InputEvent]],
 ) -> None:
     """Process the mouse selector."""
     if not context.mouse_selector.is_active():
@@ -131,9 +121,7 @@ def process_mouse_selector(
     selector_fds = set(context.mouse_selector.get_watched_fds())
 
     ready_selector_fds = [
-        fd
-        for fd in readable
-        if isinstance(fd, int) and fd in selector_fds
+        fd for fd in readable if isinstance(fd, int) and fd in selector_fds
     ]
 
     selected = context.mouse_selector.process_ready(
@@ -150,10 +138,7 @@ def process_mouse_selector(
             selected_mouse.info.name,
         )
 
-        selected_events.extend(
-            (selected_mouse, event)
-            for event in events
-        )
+        selected_events.extend((selected_mouse, event) for event in events)
 
         context.server.send_event(
             {
@@ -167,14 +152,8 @@ def process_mouse_selector(
     elif selector_timeout is not None and selector_timeout <= 0:
         context.mouse_selector.stop()
 
-        if (
-            state.input_monitoring_active
-            and state.selected_mouse is None
-        ):
-            state.next_mouse_discovery = (
-                time.monotonic()
-                + MOUSE_DISCOVERY_RETRY_DELAY
-            )
+        if state.input_monitoring_active and state.selected_mouse is None:
+            state.next_mouse_discovery = time.monotonic() + MOUSE_DISCOVERY_RETRY_DELAY
 
 
 def process_device_changes(
@@ -195,18 +174,13 @@ def process_device_changes(
 
     discovered_devices = discover_devices()
 
-    _, removed_devices, state.current_devices = (
-        context.registry.reconcile(
-            discovered_devices,
-        )
+    _, removed_devices, state.current_devices = context.registry.reconcile(
+        discovered_devices,
     )
 
-    selected_keyboard_removed = (
-        state.selected_keyboard is not None
-        and any(
-            device.device_id == state.selected_keyboard.device_id
-            for device in removed_devices
-        )
+    selected_keyboard_removed = state.selected_keyboard is not None and any(
+        device.device_id == state.selected_keyboard.device_id
+        for device in removed_devices
     )
 
     if selected_keyboard_removed:
@@ -238,12 +212,8 @@ def process_device_changes(
             get_keyboard_devices(state.current_devices),
         )
 
-    selected_mouse_removed = (
-        state.selected_mouse is not None
-        and any(
-            device.device_id == state.selected_mouse.device_id
-            for device in removed_devices
-        )
+    selected_mouse_removed = state.selected_mouse is not None and any(
+        device.device_id == state.selected_mouse.device_id for device in removed_devices
     )
 
     if selected_mouse_removed:

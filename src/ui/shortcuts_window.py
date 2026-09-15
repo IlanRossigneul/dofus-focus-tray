@@ -50,7 +50,9 @@ class ShortcutButton(QPushButton):
         else:
             palette.setColor(
                 QPalette.ColorRole.ButtonText,
-                self.style().standardPalette().color(
+                self.style()
+                .standardPalette()
+                .color(
                     QPalette.ColorRole.ButtonText,
                 ),
             )
@@ -119,10 +121,13 @@ class ShortcutsWindow(QDialog):
 
         self._configurations = self._load_configurations()
 
-        self._capture_target: tuple[
-            str,
-            str,
-        ] | None = None
+        self._capture_target: (
+            tuple[
+                str,
+                str,
+            ]
+            | None
+        ) = None
 
         self._capture_active = False
 
@@ -321,9 +326,7 @@ class ShortcutsWindow(QDialog):
             configuration_name,
             shortcut_type,
         ), button in self._buttons.items():
-            configuration = self._configurations[
-                configuration_name
-            ]
+            configuration = self._configurations[configuration_name]
 
             shortcut = getattr(
                 configuration,
@@ -373,9 +376,7 @@ class ShortcutsWindow(QDialog):
 
         target_button.setEnabled(True)
 
-        target_button.setText(
-            "Appuyez sur une touche..."
-        )
+        target_button.setText("Appuyez sur une touche...")
 
         if configuration_name == "calibration":
             allowed_mouse_buttons = set()
@@ -409,10 +410,13 @@ class ShortcutsWindow(QDialog):
                 ) == target:
                     continue
 
-                if getattr(
-                    configuration,
-                    shortcut_type,
-                ) == shortcut:
+                if (
+                    getattr(
+                        configuration,
+                        shortcut_type,
+                    )
+                    == shortcut
+                ):
                     return True
 
         return False
@@ -425,9 +429,7 @@ class ShortcutsWindow(QDialog):
         if self._capture_target is None:
             return
 
-        button = self._buttons[
-            self._capture_target
-        ]
+        button = self._buttons[self._capture_target]
 
         button.setText(message)
         button.set_capture_error(True)
@@ -456,13 +458,9 @@ class ShortcutsWindow(QDialog):
         if self._capture_target is None:
             return
 
-        configuration_name, shortcut_type = (
-            self._capture_target
-        )
+        configuration_name, shortcut_type = self._capture_target
 
-        configuration = self._configurations[
-            configuration_name
-        ]
+        configuration = self._configurations[configuration_name]
 
         setattr(
             configuration,
@@ -477,13 +475,9 @@ class ShortcutsWindow(QDialog):
         if self._capture_target is None:
             return
 
-        configuration_name, shortcut_type = (
-            self._capture_target
-        )
+        configuration_name, shortcut_type = self._capture_target
 
-        configuration = self._configurations[
-            configuration_name
-        ]
+        configuration = self._configurations[configuration_name]
 
         setattr(
             configuration,
@@ -505,19 +499,13 @@ class ShortcutsWindow(QDialog):
             shortcut,
             self._capture_target,
         ):
-            self._show_capture_error(
-                "Raccourci déjà utilisé"
-            )
+            self._show_capture_error("Raccourci déjà utilisé")
             self._duplicate_timer.start()
             return
 
-        configuration_name, shortcut_type = (
-            self._capture_target
-        )
+        configuration_name, shortcut_type = self._capture_target
 
-        configuration = self._configurations[
-            configuration_name
-        ]
+        configuration = self._configurations[configuration_name]
 
         setattr(
             configuration,
@@ -573,9 +561,7 @@ class ShortcutsWindow(QDialog):
         if screen is None:
             return
 
-        available_geometry = (
-            screen.availableGeometry()
-        )
+        available_geometry = screen.availableGeometry()
 
         window_geometry = self.frameGeometry()
 

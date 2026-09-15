@@ -8,9 +8,7 @@ def create_indicator(icon_dir: Path) -> KStatusNotifierItem:
     """Create and configure the Dofus Focus tray indicator."""
     indicator = KStatusNotifierItem()
 
-    indicator.setIconByPixmap(
-        QPixmap(str(icon_dir / "dofus.webp"))
-    )
+    indicator.setIconByPixmap(QPixmap(str(icon_dir / "dofus.webp")))
 
     indicator.setTitle("Dofus Focus")
     indicator.setToolTipTitle("Dofus Focus")

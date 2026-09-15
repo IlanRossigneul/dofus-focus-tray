@@ -327,8 +327,7 @@ def _validate_shortcut_configuration(
 
         if not isinstance(action_configuration, dict):
             raise ProtocolError(
-                f"Configuration for action '{action}' "
-                "must be an object.",
+                f"Configuration for action '{action}' must be an object.",
                 ERROR_INVALID_ARGUMENT,
             )
 
@@ -392,9 +391,7 @@ def _validate_hello_ack(message: dict[str, Any]) -> None:
         raise ProtocolError("Field 'protocol' must be an integer.")
 
     if message["protocol"] != PROTOCOL_VERSION:
-        raise ProtocolError(
-            f"Unsupported protocol version: {message['protocol']}."
-        )
+        raise ProtocolError(f"Unsupported protocol version: {message['protocol']}.")
 
 
 def _validate_device_event(message: dict[str, Any]) -> None:
@@ -502,9 +499,7 @@ def _validate_error(message: dict[str, Any]) -> None:
     command = message.get("command")
 
     if command is not None and command not in COMMANDS:
-        raise ProtocolError(
-            f"Unknown error command: {message['command']}."
-        )
+        raise ProtocolError(f"Unknown error command: {message['command']}.")
 
 
 def validate_command(message: Any) -> dict[str, Any]:

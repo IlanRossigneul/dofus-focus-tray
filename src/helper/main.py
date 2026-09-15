@@ -76,9 +76,7 @@ def get_client_uid() -> int:
     try:
         uid = int(value)
     except ValueError as exc:
-        raise RuntimeError(
-            "DOFUS_FOCUS_CLIENT_UID must be an integer."
-        ) from exc
+        raise RuntimeError("DOFUS_FOCUS_CLIENT_UID must be an integer.") from exc
 
     if uid < 0:
         raise RuntimeError("DOFUS_FOCUS_CLIENT_UID must be non-negative.")
@@ -148,9 +146,7 @@ def main() -> None:
     while True:
         try:
             new_reader_fds: set[int] = set()
-            selected_events: list[
-                tuple[HelperDevice, evdev.InputEvent]
-            ] = []
+            selected_events: list[tuple[HelperDevice, evdev.InputEvent]] = []
 
             read_sockets: list[int | socket.socket] = [server_socket]
 
@@ -243,10 +239,7 @@ def main() -> None:
 
             client_socket = server.get_client_socket()
 
-            if (
-                client_socket is not None
-                and client_socket in readable
-            ):
+            if client_socket is not None and client_socket in readable:
                 try:
                     command = server.receive_command()
                 except ProtocolError as error:

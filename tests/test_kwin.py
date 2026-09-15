@@ -94,15 +94,10 @@ def test_activate_window_generates_script_for_target_window():
 
         script = temp_file.write.call_args.args[0]
 
-        assert (
-            'String(windows[i].internalId) === "abc-123"'
-            in script
-        )
+        assert 'String(windows[i].internalId) === "abc-123"' in script
         assert "workspace.activeWindow = windows[i]" in script
 
-        scripting.call_load_script.assert_awaited_once_with(
-            "/tmp/test-kwin-script.js"
-        )
+        scripting.call_load_script.assert_awaited_once_with("/tmp/test-kwin-script.js")
 
     asyncio.run(run_test())
 
@@ -142,11 +137,7 @@ def test_activate_window_escapes_uuid_for_javascript():
 
         script = temp_file.write.call_args.args[0]
 
-        assert (
-            'String(windows[i].internalId) === '
-            '"\\"; maliciousCode(); //"'
-            in script
-        )
+        assert 'String(windows[i].internalId) === "\\"; maliciousCode(); //"' in script
         assert "String(windows[i].internalId) === " in script
         assert "workspace.activeWindow = windows[i]" in script
 
@@ -348,9 +339,7 @@ def test_activate_window_removes_script_on_failure():
     bus, _, scripting = create_kwin_mocks()
 
     bus.connect = AsyncMock(return_value=bus)
-    scripting.call_start = AsyncMock(
-        side_effect=RuntimeError("KWin script failure")
-    )
+    scripting.call_start = AsyncMock(side_effect=RuntimeError("KWin script failure"))
 
     temp_file = MagicMock()
     temp_file.name = "/tmp/test-kwin-script.js"
@@ -379,12 +368,8 @@ def test_activate_window_removes_script_on_failure():
     ):
         asyncio.run(controller.activate_window("12345"))
 
-    remove.assert_called_once_with(
-        "/tmp/test-kwin-script.js"
-    )
-    scripting.call_unload_script.assert_awaited_once_with(
-        "42"
-    )
+    remove.assert_called_once_with("/tmp/test-kwin-script.js")
+    scripting.call_unload_script.assert_awaited_once_with("42")
 
 
 def test_set_window_keep_above_loads_starts_and_unloads_script():
@@ -431,9 +416,7 @@ def test_set_window_keep_above_loads_starts_and_unloads_script():
     bus.get_proxy_object.assert_called_once()
     proxy_object.get_interface.assert_called_once()
 
-    scripting.call_load_script.assert_awaited_once_with(
-        "/tmp/test-kwin-script.js"
-    )
+    scripting.call_load_script.assert_awaited_once_with("/tmp/test-kwin-script.js")
     scripting.call_start.assert_awaited_once()
     sleep.assert_awaited_once_with(0.2)
     scripting.call_unload_script.assert_awaited_once_with("42")
@@ -443,9 +426,7 @@ def test_set_window_keep_above_loads_starts_and_unloads_script():
     assert "if (window.pid !== 12345)" in script
     assert "window.keepAbove = true;" in script
 
-    remove.assert_called_once_with(
-        "/tmp/test-kwin-script.js"
-    )
+    remove.assert_called_once_with("/tmp/test-kwin-script.js")
     bus.disconnect.assert_called_once()
 
 
@@ -455,9 +436,7 @@ def test_set_window_keep_above_unloads_script_when_start_fails():
 
     bus.connect = AsyncMock(return_value=bus)
     bus.disconnect = MagicMock()
-    scripting.call_start = AsyncMock(
-        side_effect=RuntimeError("KWin script failure")
-    )
+    scripting.call_start = AsyncMock(side_effect=RuntimeError("KWin script failure"))
 
     temp_file = MagicMock()
     temp_file.name = "/tmp/test-kwin-script.js"
@@ -486,15 +465,11 @@ def test_set_window_keep_above_unloads_script_when_start_fails():
             )
         )
 
-    scripting.call_load_script.assert_awaited_once_with(
-        "/tmp/test-kwin-script.js"
-    )
+    scripting.call_load_script.assert_awaited_once_with("/tmp/test-kwin-script.js")
     scripting.call_start.assert_awaited_once()
     scripting.call_unload_script.assert_awaited_once_with("42")
 
-    remove.assert_called_once_with(
-        "/tmp/test-kwin-script.js"
-    )
+    remove.assert_called_once_with("/tmp/test-kwin-script.js")
     bus.disconnect.assert_called_once()
 
 

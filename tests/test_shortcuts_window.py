@@ -159,47 +159,17 @@ def test_existing_shortcuts_are_loaded_and_displayed(
 
     window = make_window(tmp_path)
 
-    assert (
-        window._buttons[
-            ("calibration", "primary")
-        ].text()
-        == "CTRL + D"
-    )
+    assert window._buttons[("calibration", "primary")].text() == "CTRL + D"
 
-    assert (
-        window._buttons[
-            ("calibration", "alternate")
-        ].text()
-        == "BTN_SIDE"
-    )
+    assert window._buttons[("calibration", "alternate")].text() == "BTN_SIDE"
 
-    assert (
-        window._buttons[
-            ("next", "primary")
-        ].text()
-        == "ALT + RIGHT"
-    )
+    assert window._buttons[("next", "primary")].text() == "ALT + RIGHT"
 
-    assert (
-        window._buttons[
-            ("next", "alternate")
-        ].text()
-        == "—"
-    )
+    assert window._buttons[("next", "alternate")].text() == "—"
 
-    assert (
-        window._buttons[
-            ("previous", "primary")
-        ].text()
-        == "CTRL + LEFT"
-    )
+    assert window._buttons[("previous", "primary")].text() == "CTRL + LEFT"
 
-    assert (
-        window._buttons[
-            ("previous", "alternate")
-        ].text()
-        == "F"
-    )
+    assert window._buttons[("previous", "alternate")].text() == "F"
 
     window.close()
 
@@ -252,9 +222,7 @@ def test_starting_capture_disables_all_controls_except_target(
 ):
     window = make_window(tmp_path)
 
-    target = window._buttons[
-        ("calibration", "primary")
-    ]
+    target = window._buttons[("calibration", "primary")]
 
     window._start_capture(
         "calibration",
@@ -301,40 +269,15 @@ def test_capture_result_updates_targeted_shortcut(
         shortcut,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == shortcut
-    )
+    assert window._configurations["calibration"].primary == shortcut
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].alternate
-        is None
-    )
+    assert window._configurations["calibration"].alternate is None
 
-    assert (
-        window._configurations[
-            "next"
-        ].primary
-        is None
-    )
+    assert window._configurations["next"].primary is None
 
-    assert (
-        window._configurations[
-            "previous"
-        ].primary
-        is None
-    )
+    assert window._configurations["previous"].primary is None
 
-    assert (
-        window._buttons[
-            ("calibration", "primary")
-        ].text()
-        == "CTRL + D"
-    )
+    assert window._buttons[("calibration", "primary")].text() == "CTRL + D"
 
     assert window._capture_active is False
     assert window._capture_target is None
@@ -401,19 +344,9 @@ def test_capture_can_replace_existing_shortcut(
         replacement,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == replacement
-    )
+    assert window._configurations["calibration"].primary == replacement
 
-    assert (
-        window._buttons[
-            ("calibration", "primary")
-        ].text()
-        == "ALT + F"
-    )
+    assert window._buttons[("calibration", "primary")].text() == "ALT + F"
 
     window.close()
 
@@ -428,9 +361,7 @@ def test_same_shortcut_can_be_kept_in_same_field(
         modifiers=frozenset({"CTRL"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     start_fake_capture(
         window,
@@ -441,12 +372,7 @@ def test_same_shortcut_can_be_kept_in_same_field(
         existing,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == existing
-    )
+    assert window._configurations["calibration"].primary == existing
 
     assert window._capture_active is False
     assert window._capture_target is None
@@ -469,13 +395,9 @@ def test_duplicate_shortcut_does_not_modify_configuration(
         modifiers=frozenset({"ALT"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
-    window._configurations[
-        "next"
-    ].primary = original_target
+    window._configurations["next"].primary = original_target
 
     start_fake_capture(
         window,
@@ -486,26 +408,11 @@ def test_duplicate_shortcut_does_not_modify_configuration(
         existing,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == existing
-    )
+    assert window._configurations["calibration"].primary == existing
 
-    assert (
-        window._configurations[
-            "next"
-        ].primary
-        == original_target
-    )
+    assert window._configurations["next"].primary == original_target
 
-    assert (
-        window._configurations[
-            "previous"
-        ].primary
-        is None
-    )
+    assert window._configurations["previous"].primary is None
 
     assert window._capture_active is True
     assert window._capture_target == (
@@ -548,33 +455,13 @@ def test_primary_and_alternate_are_independent(
         alternate,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == primary
-    )
+    assert window._configurations["calibration"].primary == primary
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].alternate
-        == alternate
-    )
+    assert window._configurations["calibration"].alternate == alternate
 
-    assert (
-        window._buttons[
-            ("calibration", "primary")
-        ].text()
-        == "CTRL + D"
-    )
+    assert window._buttons[("calibration", "primary")].text() == "CTRL + D"
 
-    assert (
-        window._buttons[
-            ("calibration", "alternate")
-        ].text()
-        == "BTN_SIDE"
-    )
+    assert window._buttons[("calibration", "alternate")].text() == "BTN_SIDE"
 
     window.close()
 
@@ -625,9 +512,7 @@ def test_capture_failure_restores_current_configuration(
         modifiers=frozenset({"CTRL"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     window._update_buttons()
 
@@ -651,19 +536,9 @@ def test_capture_failure_restores_current_configuration(
     assert window._capture_active is False
     assert window._capture_target is None
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == existing
-    )
+    assert window._configurations["calibration"].primary == existing
 
-    assert (
-        window._buttons[
-            ("calibration", "primary")
-        ].text()
-        == "CTRL + D"
-    )
+    assert window._buttons[("calibration", "primary")].text() == "CTRL + D"
 
     assert window._save_button.isEnabled() is True
     assert window._quit_button.isEnabled() is True
@@ -732,10 +607,7 @@ def test_new_shortcut_is_not_saved_before_save(
 
     loaded = storage.load()
 
-    assert (
-        loaded["calibration"].primary
-        == original
-    )
+    assert loaded["calibration"].primary == original
 
     window.close()
 
@@ -761,17 +633,11 @@ def test_save_persists_current_configuration(
         trigger="BTN_SIDE",
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = calibration_primary
+    window._configurations["calibration"].primary = calibration_primary
 
-    window._configurations[
-        "next"
-    ].primary = next_primary
+    window._configurations["next"].primary = next_primary
 
-    window._configurations[
-        "previous"
-    ].alternate = previous_alternate
+    window._configurations["previous"].alternate = previous_alternate
 
     window._update_buttons()
 
@@ -780,20 +646,11 @@ def test_save_persists_current_configuration(
     storage = ShortcutStorage(path)
     loaded = storage.load()
 
-    assert (
-        loaded["calibration"].primary
-        == calibration_primary
-    )
+    assert loaded["calibration"].primary == calibration_primary
 
-    assert (
-        loaded["next"].primary
-        == next_primary
-    )
+    assert loaded["next"].primary == next_primary
 
-    assert (
-        loaded["previous"].alternate
-        == previous_alternate
-    )
+    assert loaded["previous"].alternate == previous_alternate
 
     assert window.isVisible() is False
 
@@ -819,9 +676,7 @@ def test_quit_does_not_save_unsaved_changes(
 
     window = make_window(tmp_path)
 
-    window._configurations[
-        "calibration"
-    ].primary = Shortcut(
+    window._configurations["calibration"].primary = Shortcut(
         trigger="F",
     )
 
@@ -831,10 +686,7 @@ def test_quit_does_not_save_unsaved_changes(
 
     loaded = storage.load()
 
-    assert (
-        loaded["calibration"].primary
-        == original
-    )
+    assert loaded["calibration"].primary == original
 
 
 def test_close_is_ignored_while_capture_is_active(
@@ -913,9 +765,7 @@ def test_duplicate_shortcut_shows_capture_error(
         "primary",
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     start_fake_capture(
         window,
@@ -951,9 +801,7 @@ def test_duplicate_shortcut_starts_cancel_timer(
         "primary",
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     start_fake_capture(
         window,
@@ -990,13 +838,9 @@ def test_duplicate_timeout_cancels_capture(
         "primary",
     )
 
-    window._configurations[
-        "next"
-    ].primary = original
+    window._configurations["next"].primary = original
 
-    window._configurations[
-        "calibration"
-    ].primary = duplicate
+    window._configurations["calibration"].primary = duplicate
 
     start_fake_capture(
         window,
@@ -1012,12 +856,7 @@ def test_duplicate_timeout_cancels_capture(
     assert window._capture_active is False
     assert window._capture_target is None
 
-    assert (
-        window._configurations[
-            "next"
-        ].primary
-        == original
-    )
+    assert window._configurations["next"].primary == original
 
     assert window._buttons[target].text() == "ALT + F"
     assert window._buttons[target].styleSheet() == ""
@@ -1040,9 +879,7 @@ def test_capture_after_duplicate_clears_capture_error(
         "primary",
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     start_fake_capture(
         window,
@@ -1070,12 +907,7 @@ def test_capture_after_duplicate_clears_capture_error(
     assert window._capture_active is False
     assert window._capture_target is None
 
-    assert (
-        window._configurations[
-            "next"
-        ].primary
-        == replacement
-    )
+    assert window._configurations["next"].primary == replacement
 
     assert window._duplicate_timer.isActive() is False
 
@@ -1097,9 +929,7 @@ def test_escape_cancels_capture_and_restores_original_shortcut(
         modifiers=frozenset({"CTRL"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     window._update_buttons()
 
@@ -1113,12 +943,7 @@ def test_escape_cancels_capture_and_restores_original_shortcut(
         Qt.Key.Key_Escape,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        == existing
-    )
+    assert window._configurations["calibration"].primary == existing
 
     assert window._buttons[target].text() == "CTRL + D"
     assert window._capture_active is False
@@ -1148,12 +973,7 @@ def test_escape_cancels_capture_without_creating_shortcut(
         Qt.Key.Key_Escape,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        is None
-    )
+    assert window._configurations["calibration"].primary is None
 
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
@@ -1183,12 +1003,7 @@ def test_backspace_clears_current_shortcut(
         Qt.Key.Key_Backspace,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        is None
-    )
+    assert window._configurations["calibration"].primary is None
 
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
@@ -1213,9 +1028,7 @@ def test_backspace_clears_existing_shortcut(
         modifiers=frozenset({"CTRL"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     window._update_buttons()
 
@@ -1229,12 +1042,7 @@ def test_backspace_clears_existing_shortcut(
         Qt.Key.Key_Backspace,
     )
 
-    assert (
-        window._configurations[
-            "calibration"
-        ].primary
-        is None
-    )
+    assert window._configurations["calibration"].primary is None
 
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False
@@ -1259,9 +1067,7 @@ def test_backspace_clears_capture_error(
         modifiers=frozenset({"CTRL"}),
     )
 
-    window._configurations[
-        "calibration"
-    ].primary = existing
+    window._configurations["calibration"].primary = existing
 
     start_fake_capture(
         window,
@@ -1277,12 +1083,7 @@ def test_backspace_clears_capture_error(
         Qt.Key.Key_Backspace,
     )
 
-    assert (
-        window._configurations[
-            "next"
-        ].primary
-        is None
-    )
+    assert window._configurations["next"].primary is None
 
     assert window._buttons[target].text() == "—"
     assert window._capture_active is False

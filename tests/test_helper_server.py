@@ -185,10 +185,7 @@ def test_receive_command_handles_multiple_commands(tmp_path):
         server._get_peer_uid = lambda client: CLIENT_UID
         assert server.accept_client(server_socket)
 
-        client_socket.sendall(
-            b'{"type":"start"}\n'
-            b'{"type":"stop"}\n'
-        )
+        client_socket.sendall(b'{"type":"start"}\n{"type":"stop"}\n')
 
         assert server.receive_command() == {
             "type": "start",
@@ -212,10 +209,7 @@ def test_receive_command_preserves_partial_next_command(tmp_path):
         server._get_peer_uid = lambda client: CLIENT_UID
         assert server.accept_client(server_socket)
 
-        client_socket.sendall(
-            b'{"type":"start"}\n'
-            b'{"type":"sto'
-        )
+        client_socket.sendall(b'{"type":"start"}\n{"type":"sto')
 
         assert server.receive_command() == {
             "type": "start",

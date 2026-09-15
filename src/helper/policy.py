@@ -149,10 +149,7 @@ class InputPolicy:
         )
 
         for rule in keyboard_rules:
-            if (
-                rule.combination == combination
-                and rule.action != action
-            ):
+            if rule.combination == combination and rule.action != action:
                 raise ValueError(
                     "Keyboard shortcut is assigned to multiple actions.",
                 )

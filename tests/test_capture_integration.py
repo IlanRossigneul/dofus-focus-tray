@@ -120,11 +120,14 @@ def test_events_are_ignored_after_capture_is_completed():
 
     assert str(shortcut) == "CTRL + D"
 
-    assert capture.process_event(
-        make_event(
-            evdev.ecodes.EV_KEY,
-            evdev.ecodes.KEY_E,
-            1,
-            frozenset({"CTRL"}),
+    assert (
+        capture.process_event(
+            make_event(
+                evdev.ecodes.EV_KEY,
+                evdev.ecodes.KEY_E,
+                1,
+                frozenset({"CTRL"}),
+            )
         )
-    ) is None
+        is None
+    )

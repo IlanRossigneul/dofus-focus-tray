@@ -71,15 +71,9 @@ def make_service(
     return ShortcutService(
         xkb=FakeXkb(),
         configuration=(
-            make_configuration()
-            if configuration is None
-            else configuration
+            make_configuration() if configuration is None else configuration
         ),
-        on_action=(
-            (lambda _action: None)
-            if on_action is None
-            else on_action
-        ),
+        on_action=((lambda _action: None) if on_action is None else on_action),
         stop_requested=lambda: False,
     )
 
@@ -215,7 +209,7 @@ def test_service_processes_helper_keyboard_event_from_socket(
                 continue
 
             line = bytes(buffer[:separator])
-            del buffer[:separator + 1]
+            del buffer[: separator + 1]
 
             message = json.loads(line)
 
@@ -419,7 +413,7 @@ def test_service_processes_helper_mouse_button_event_from_socket(
                 continue
 
             line = bytes(buffer[:separator])
-            del buffer[:separator + 1]
+            del buffer[: separator + 1]
 
             message = json.loads(line)
 
@@ -564,10 +558,7 @@ def test_service_handles_helper_mouse_interception_error(
     with caplog.at_level("ERROR"):
         service._set_helper_mouse_interception(True)
 
-    assert (
-        "Unable to update mouse interception through input helper"
-        in caplog.text
-    )
+    assert "Unable to update mouse interception through input helper" in caplog.text
 
 
 def test_service_syncs_helper_mouse_interception_when_mouse_is_selected(
@@ -834,8 +825,7 @@ def test_service_handles_helper_mouse_button_configuration_error(
         )
 
     assert (
-        "Unable to update intercepted mouse buttons through input helper"
-        in caplog.text
+        "Unable to update intercepted mouse buttons through input helper" in caplog.text
     )
 
 

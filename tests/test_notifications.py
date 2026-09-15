@@ -24,9 +24,7 @@ def test_calibration_no_windows_creates_expected_notification(
 
     notification.set_hint.assert_called_once()
 
-    hint_name, hint_value = (
-        notification.set_hint.call_args.args
-    )
+    hint_name, hint_value = notification.set_hint.call_args.args
 
     assert hint_name == "desktop-entry"
     assert hint_value.unpack() == "dofus-focus-tray"
@@ -54,8 +52,7 @@ def test_calibration_no_windows_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "0 compte détecté\n"
-        "Veuillez relancer la calibration avec vos comptes ouverts.",
+        "0 compte détecté\nVeuillez relancer la calibration avec vos comptes ouverts.",
         "",
     )
 
@@ -115,8 +112,7 @@ def test_calibration_one_window_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "1 Compte détecté\n"
-        "Calibration terminée.",
+        "1 Compte détecté\nCalibration terminée.",
         "",
     )
 
@@ -163,8 +159,7 @@ def test_calibration_multiple_windows_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "3 comptes détectés\n"
-        "Sélectionnez-les dans l'ordre souhaité.",
+        "3 comptes détectés\nSélectionnez-les dans l'ordre souhaité.",
         "",
     )
 
@@ -192,8 +187,7 @@ def test_calibration_multiple_windows_with_active_window_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "Étape 1 / 3\n"
-        "Sélectionnez maintenant le compte suivant.",
+        "Étape 1 / 3\nSélectionnez maintenant le compte suivant.",
         "",
     )
 
@@ -221,8 +215,7 @@ def test_calibration_multiple_windows_step_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "Étape 2 / 4\n"
-        "Sélectionnez maintenant le compte suivant.",
+        "Étape 2 / 4\nSélectionnez maintenant le compte suivant.",
         "",
     )
 
@@ -250,8 +243,7 @@ def test_calibration_multiple_windows_last_step_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "Étape 3 / 4\n"
-        "Sélectionnez maintenant le dernier compte.",
+        "Étape 3 / 4\nSélectionnez maintenant le dernier compte.",
         "",
     )
 
@@ -272,9 +264,7 @@ def test_calibration_multiple_windows_completion_uses_expected_content(
 
     manager = DofusNotificationManager()
 
-    summary = (
-        "Compte 2, Compte 1, Compte 4 et Compte 3"
-    )
+    summary = "Compte 2, Compte 1, Compte 4 et Compte 3"
 
     manager.notify_calibration_multiple_windows(
         window_count=4,
@@ -284,9 +274,7 @@ def test_calibration_multiple_windows_completion_uses_expected_content(
 
     new_notification.assert_called_once_with(
         "Calibration",
-        "Étape 4 / 4\n"
-        "Calibration terminée.\n"
-        "Compte 2, Compte 1, Compte 4 et Compte 3",
+        "Étape 4 / 4\nCalibration terminée.\nCompte 2, Compte 1, Compte 4 et Compte 3",
         "",
     )
 

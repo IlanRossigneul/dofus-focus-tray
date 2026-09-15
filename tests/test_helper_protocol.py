@@ -146,36 +146,28 @@ def test_valid_hello():
 
 def test_hello_missing_protocol():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"hello"}\n'
-        ),
+        lambda: decode_command(b'{"type":"hello"}\n'),
         ERROR_INVALID_ARGUMENT,
     )
 
 
 def test_hello_with_extra_field():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"hello","protocol":1,"extra":true}\n'
-        ),
+        lambda: decode_command(b'{"type":"hello","protocol":1,"extra":true}\n'),
         ERROR_INVALID_ARGUMENT,
     )
 
 
 def test_hello_protocol_must_be_integer():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"hello","protocol":"1"}\n'
-        ),
+        lambda: decode_command(b'{"type":"hello","protocol":"1"}\n'),
         ERROR_INVALID_ARGUMENT,
     )
 
 
 def test_hello_protocol_version_mismatch():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"hello","protocol":999}\n'
-        ),
+        lambda: decode_command(b'{"type":"hello","protocol":999}\n'),
         ERROR_UNSUPPORTED_PROTOCOL,
     )
 
@@ -230,9 +222,7 @@ def test_set_mouse_interception_accepts_boolean():
 
 def test_set_mouse_interception_requires_enabled():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"set_mouse_interception"}\n'
-        ),
+        lambda: decode_command(b'{"type":"set_mouse_interception"}\n'),
         ERROR_INVALID_ARGUMENT,
     )
 
@@ -291,9 +281,7 @@ def test_set_intercepted_mouse_buttons_accepts_unique_integer_codes():
 
 def test_set_intercepted_mouse_buttons_requires_buttons():
     assert_protocol_error(
-        lambda: decode_command(
-            b'{"type":"set_intercepted_mouse_buttons"}\n'
-        ),
+        lambda: decode_command(b'{"type":"set_intercepted_mouse_buttons"}\n'),
         ERROR_INVALID_ARGUMENT,
     )
 

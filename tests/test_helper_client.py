@@ -943,6 +943,7 @@ def test_receive_loop_rejects_oversized_incomplete_message(
     disconnect_event = threading.Event()
 
     try:
+
         def on_disconnect():
             disconnect_event.set()
 
@@ -991,6 +992,7 @@ def test_receive_loop_rejects_invalid_event(
     disconnect_event = threading.Event()
 
     try:
+
         def on_disconnect():
             disconnect_event.set()
 

@@ -542,10 +542,7 @@ class ShortcutService:
                     time.sleep(HELPER_RECONNECT_DELAY)
                     continue
 
-                while (
-                    not self._stop_requested()
-                    and self._helper_client.is_ready()
-                ):
+                while not self._stop_requested() and self._helper_client.is_ready():
                     time.sleep(0.1)
 
                 if self._stop_requested():

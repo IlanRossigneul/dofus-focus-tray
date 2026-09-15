@@ -28,32 +28,35 @@ class DofusFocusBridge(ServiceInterface):
         on_state_changed: Callable[
             [DofusFocusState, int],
             None,
-        ] | None = None,
+        ]
+        | None = None,
         on_calibration_started: Callable[
             [int, int, str | None],
             None,
-        ] | None = None,
+        ]
+        | None = None,
         on_new_window: Callable[
             [],
             None,
-        ] | None = None,
+        ]
+        | None = None,
         on_calibration_already_selected: Callable[
             [],
             None,
-        ] | None = None,
+        ]
+        | None = None,
         on_calibration_cancelled: Callable[
             [],
             None,
-        ] | None = None,
+        ]
+        | None = None,
     ):
         super().__init__(INTERFACE_NAME)
 
         self._on_state_changed = on_state_changed
         self._on_calibration_started = on_calibration_started
         self._on_new_window = on_new_window
-        self._on_calibration_already_selected = (
-            on_calibration_already_selected
-        )
+        self._on_calibration_already_selected = on_calibration_already_selected
         self._on_calibration_cancelled = on_calibration_cancelled
 
         self._windows = WindowsController()
@@ -115,10 +118,7 @@ class DofusFocusBridge(ServiceInterface):
         if not self._calibration.calibrated:
             return None
 
-        windows = [
-            window.name
-            for window in self._calibration.calibrated_windows
-        ]
+        windows = [window.name for window in self._calibration.calibrated_windows]
 
         if len(windows) <= 1:
             return None
@@ -177,10 +177,7 @@ class DofusFocusBridge(ServiceInterface):
             self._windows.windows,
         )
 
-        if (
-            self._calibration.calibrating
-            and self._windows.active_window
-        ):
+        if self._calibration.calibrating and self._windows.active_window:
             selected = self._calibration.select_window(
                 self._windows.active_window,
             )
@@ -196,8 +193,7 @@ class DofusFocusBridge(ServiceInterface):
 
         if self._calibration.calibrated:
             calibrated_windows = ",\n".join(
-                str(window)
-                for window in self._calibration.calibrated_windows
+                str(window) for window in self._calibration.calibrated_windows
             )
 
             logger.info(
@@ -252,17 +248,10 @@ class DofusFocusBridge(ServiceInterface):
         removed_windows = previous_windows - current_windows
 
         calibrated_window_disappeared = bool(
-            removed_windows
-            & {
-                window.uuid
-                for window in previous_calibrated_windows
-            }
+            removed_windows & {window.uuid for window in previous_calibrated_windows}
         )
 
-        if (
-            self._calibration.calibrating
-            and self._windows.active_window
-        ):
+        if self._calibration.calibrating and self._windows.active_window:
             selected = self._calibration.select_window(
                 self._windows.active_window,
             )
@@ -283,14 +272,9 @@ class DofusFocusBridge(ServiceInterface):
                     self._get_calibration_summary(),
                 )
 
-        new_window_detected = bool(
-            current_windows - previous_windows
-        )
+        new_window_detected = bool(current_windows - previous_windows)
 
-        if (
-            new_window_detected
-            and previous_calibrated
-        ):
+        if new_window_detected and previous_calibrated:
             logger.info(
                 "New window detected after calibration: new_windows=%s",
                 sorted(current_windows - previous_windows),
@@ -304,8 +288,7 @@ class DofusFocusBridge(ServiceInterface):
             and self._calibration.calibrated
         ):
             calibrated_windows = ",\n".join(
-                str(window)
-                for window in self._calibration.calibrated_windows
+                str(window) for window in self._calibration.calibrated_windows
             )
 
             logger.info(
@@ -355,10 +338,7 @@ class DofusFocusBridge(ServiceInterface):
             if self._on_calibration_cancelled is not None:
                 self._on_calibration_cancelled()
 
-        elif (
-            previous_calibrated
-            and self._calibration.calibrating
-        ):
+        elif previous_calibrated and self._calibration.calibrating:
             if self._on_calibration_started is not None:
                 self._on_calibration_started(
                     len(self._windows.windows),
@@ -377,8 +357,7 @@ class DofusFocusBridge(ServiceInterface):
 
         if self._ignore_next_active_window:
             logger.debug(
-                "Ignoring active-window update after calibration cancellation: "
-                "uuid=%s",
+                "Ignoring active-window update after calibration cancellation: uuid=%s",
                 uuid,
             )
 
@@ -389,8 +368,7 @@ class DofusFocusBridge(ServiceInterface):
 
         if self._calibration.calibrating:
             already_selected = any(
-                window.uuid == uuid
-                for window in self._calibration.calibrated_windows
+                window.uuid == uuid for window in self._calibration.calibrated_windows
             )
 
             logger.debug(
@@ -411,8 +389,7 @@ class DofusFocusBridge(ServiceInterface):
             if selected:
                 if self._calibration.calibrated:
                     calibrated_windows = ",\n".join(
-                        str(window)
-                        for window in self._calibration.calibrated_windows
+                        str(window) for window in self._calibration.calibrated_windows
                     )
 
                     logger.info(
@@ -432,10 +409,7 @@ class DofusFocusBridge(ServiceInterface):
                 if self._calibration.calibrated:
                     self._focus.update_active_window(uuid)
 
-            elif (
-                already_selected
-                and self._on_calibration_already_selected is not None
-            ):
+            elif already_selected and self._on_calibration_already_selected is not None:
                 logger.debug(
                     "Already-selected notification: uuid=%s",
                     uuid,

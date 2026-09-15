@@ -13,26 +13,19 @@ def create_bridge() -> DofusFocusBridge:
 
 
 def calibrated_uuids(bridge: DofusFocusBridge) -> list[str]:
-    return [
-        window.uuid
-        for window in bridge._calibration.calibrated_windows
-    ]
+    return [window.uuid for window in bridge._calibration.calibrated_windows]
 
 
 def calibrated_orders(
     bridge: DofusFocusBridge,
 ) -> list[int | None]:
     return [
-        window.calibrated_order
-        for window in bridge._calibration.calibrated_windows
+        window.calibrated_order for window in bridge._calibration.calibrated_windows
     ]
 
 
 def positions(bridge: DofusFocusBridge) -> list[int]:
-    return [
-        window.position
-        for window in bridge._calibration.calibrated_windows
-    ]
+    return [window.position for window in bridge._calibration.calibrated_windows]
 
 
 def update_windows(
@@ -584,9 +577,7 @@ def test_update_active_window_after_calibrated_window_disappears_does_not_notify
     already_selected = []
 
     bridge = DofusFocusBridge(
-        on_calibration_already_selected=lambda: (
-            already_selected.append(True)
-        ),
+        on_calibration_already_selected=lambda: already_selected.append(True),
     )
 
     update_windows(

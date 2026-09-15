@@ -86,10 +86,7 @@ class KeyboardSelector:
     def get_watched_fds(self) -> list[int]:
         """Return file descriptors for active keyboard candidates."""
 
-        return [
-            input_device.fileno()
-            for _, input_device in self._devices.values()
-        ]
+        return [input_device.fileno() for _, input_device in self._devices.values()]
 
     def process_ready(
         self,

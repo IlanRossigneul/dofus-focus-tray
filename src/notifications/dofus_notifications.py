@@ -25,8 +25,7 @@ class DofusNotificationManager:
 
         self._notify(
             "Calibration",
-            "1 Compte détecté\n"
-            "Calibration terminée.",
+            "1 Compte détecté\nCalibration terminée.",
         )
 
     def notify_calibration_multiple_windows(
@@ -50,10 +49,7 @@ class DofusNotificationManager:
             )
 
         elif step == window_count:
-            message = (
-                f"Étape {step} / {window_count}\n"
-                "Calibration terminée."
-            )
+            message = f"Étape {step} / {window_count}\nCalibration terminée."
 
             if summary:
                 message += f"\n{summary}"
@@ -91,8 +87,7 @@ class DofusNotificationManager:
 
         self._notify(
             "Calibration",
-            "Calibration annulée\n"
-            "Un compte calibré a été fermé.",
+            "Calibration annulée\nUn compte calibré a été fermé.",
         )
 
     def _notify(

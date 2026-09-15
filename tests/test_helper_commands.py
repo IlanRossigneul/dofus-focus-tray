@@ -383,17 +383,23 @@ def test_stop_command_stops_and_restarts_input_monitoring(monkeypatch):
 
     context.mouse_selector.is_active.return_value = False
 
-    assert handle_command(
-        {"type": COMMAND_START},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_START},
+            context,
+            state,
+        )
+        is True
+    )
 
-    assert handle_command(
-        {"type": COMMAND_STOP},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_STOP},
+            context,
+            state,
+        )
+        is True
+    )
 
     assert state.input_monitoring_active is False
     assert state.selected_keyboard is None
@@ -402,11 +408,14 @@ def test_stop_command_stops_and_restarts_input_monitoring(monkeypatch):
     assert state.mouse_grabber is None
     assert state.capture_active is False
 
-    assert handle_command(
-        {"type": COMMAND_START},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_START},
+            context,
+            state,
+        )
+        is True
+    )
 
     assert context.reader.start_device_monitor.call_count == 2
     context.reader.close.assert_called_once_with()
@@ -527,11 +536,14 @@ def test_start_capture_stops_active_mouse_interception():
     interceptor.is_started.return_value = True
     state.mouse_interceptor = interceptor
 
-    assert handle_command(
-        {"type": COMMAND_START_CAPTURE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_START_CAPTURE},
+            context,
+            state,
+        )
+        is True
+    )
 
     interceptor.stop.assert_called_once_with()
     assert state.mouse_interceptor is None
@@ -545,11 +557,14 @@ def test_stop_capture_keeps_input_monitoring_active():
     state.input_monitoring_active = True
     state.capture_active = True
 
-    assert handle_command(
-        {"type": COMMAND_STOP_CAPTURE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_STOP_CAPTURE},
+            context,
+            state,
+        )
+        is True
+    )
 
     assert state.input_monitoring_active is True
     assert state.capture_active is False
@@ -662,11 +677,14 @@ def test_release_selected_mouse_command_releases_grabber():
     grabber = MagicMock()
     state.mouse_grabber = grabber
 
-    assert handle_command(
-        {"type": COMMAND_RELEASE_SELECTED_MOUSE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_RELEASE_SELECTED_MOUSE},
+            context,
+            state,
+        )
+        is True
+    )
 
     grabber.stop.assert_called_once_with()
     assert state.mouse_grabber is None
@@ -677,11 +695,14 @@ def test_grab_selected_mouse_command_handles_missing_or_failed_grab(
 ):
     context, state = build_command_context()
 
-    assert handle_command(
-        {"type": COMMAND_GRAB_SELECTED_MOUSE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_GRAB_SELECTED_MOUSE},
+            context,
+            state,
+        )
+        is True
+    )
 
     context.server.send_event.assert_called_once_with(
         {
@@ -705,11 +726,14 @@ def test_grab_selected_mouse_command_handles_missing_or_failed_grab(
         MagicMock(return_value=grabber),
     )
 
-    assert handle_command(
-        {"type": COMMAND_GRAB_SELECTED_MOUSE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_GRAB_SELECTED_MOUSE},
+            context,
+            state,
+        )
+        is True
+    )
 
     grabber.start.assert_called_once_with()
     assert state.mouse_grabber is None
@@ -739,11 +763,14 @@ def test_grab_selected_mouse_command_handles_mouse_already_in_use(
         MagicMock(return_value=grabber),
     )
 
-    assert handle_command(
-        {"type": COMMAND_GRAB_SELECTED_MOUSE},
-        context,
-        state,
-    ) is True
+    assert (
+        handle_command(
+            {"type": COMMAND_GRAB_SELECTED_MOUSE},
+            context,
+            state,
+        )
+        is True
+    )
 
     grabber.start.assert_called_once_with()
     assert state.mouse_grabber is None
@@ -761,11 +788,14 @@ def test_grab_selected_mouse_command_handles_mouse_already_in_use(
 def test_handle_command_returns_false_for_unknown_command():
     context, state = build_command_context()
 
-    assert handle_command(
-        {"type": "unknown_command"},
-        context,
-        state,
-    ) is False
+    assert (
+        handle_command(
+            {"type": "unknown_command"},
+            context,
+            state,
+        )
+        is False
+    )
 
 
 def test_reset_client_state_clears_intercepted_mouse_buttons():

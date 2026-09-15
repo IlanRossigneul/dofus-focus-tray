@@ -26,9 +26,7 @@ FORBIDDEN_MOUSE_BUTTON_CODES = frozenset(
     }
 )
 
-ALLOWED_MOUSE_BUTTON_CODES = (
-    MOUSE_BUTTON_CODES - FORBIDDEN_MOUSE_BUTTON_CODES
-)
+ALLOWED_MOUSE_BUTTON_CODES = MOUSE_BUTTON_CODES - FORBIDDEN_MOUSE_BUTTON_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -97,10 +95,7 @@ class MouseSelector:
     def get_watched_fds(self) -> list[int]:
         """Return file descriptors for active mouse candidates."""
 
-        return [
-            input_device.fileno()
-            for _, input_device in self._devices.values()
-        ]
+        return [input_device.fileno() for _, input_device in self._devices.values()]
 
     def process_ready(
         self,

@@ -61,9 +61,7 @@ def make_capture():
 def test_keyboard_input_without_modifier_is_processed():
     capture = make_capture()
 
-    shortcut = capture.process_event(
-        key_event(evdev.ecodes.KEY_D, 1)
-    )
+    shortcut = capture.process_event(key_event(evdev.ecodes.KEY_D, 1))
 
     assert str(shortcut) == "D"
 
@@ -151,9 +149,7 @@ def test_azerty_trigger_with_modifiers_is_translated():
 def test_mouse_button_is_captured():
     capture = make_capture()
 
-    shortcut = capture.process_event(
-        key_event(evdev.ecodes.BTN_SIDE, 1)
-    )
+    shortcut = capture.process_event(key_event(evdev.ecodes.BTN_SIDE, 1))
 
     assert str(shortcut) == "BTN_SIDE"
 
@@ -161,9 +157,7 @@ def test_mouse_button_is_captured():
 def test_other_mouse_button_is_captured():
     capture = make_capture()
 
-    shortcut = capture.process_event(
-        key_event(evdev.ecodes.BTN_FORWARD, 1)
-    )
+    shortcut = capture.process_event(key_event(evdev.ecodes.BTN_FORWARD, 1))
 
     assert str(shortcut) == "BTN_FORWARD"
 
@@ -185,9 +179,7 @@ def test_forbidden_mouse_buttons_are_rejected(button_name):
         ShortcutCaptureRejected,
         match=button_name,
     ) as error:
-        capture.process_event(
-            key_event(button, 1)
-        )
+        capture.process_event(key_event(button, 1))
 
     assert error.value.trigger == button_name
 
@@ -202,9 +194,7 @@ def test_mouse_button_outside_allowed_set_is_rejected():
         ShortcutCaptureRejected,
         match="BTN_FORWARD",
     ) as error:
-        capture.process_event(
-            key_event(evdev.ecodes.BTN_FORWARD, 1)
-        )
+        capture.process_event(key_event(evdev.ecodes.BTN_FORWARD, 1))
 
     assert error.value.trigger == "BTN_FORWARD"
 
@@ -224,13 +214,16 @@ def test_mouse_motion_is_ignored():
 def test_key_repeat_is_ignored():
     capture = make_capture()
 
-    assert capture.process_event(
-        key_event(
-            evdev.ecodes.KEY_D,
-            2,
-            frozenset({"CTRL"}),
+    assert (
+        capture.process_event(
+            key_event(
+                evdev.ecodes.KEY_D,
+                2,
+                frozenset({"CTRL"}),
+            )
         )
-    ) is None
+        is None
+    )
 
 
 def test_first_valid_trigger_completes_capture():
@@ -246,13 +239,16 @@ def test_first_valid_trigger_completes_capture():
 
     assert str(shortcut) == "CTRL + D"
 
-    assert capture.process_event(
-        key_event(
-            evdev.ecodes.KEY_E,
-            1,
-            frozenset({"CTRL"}),
+    assert (
+        capture.process_event(
+            key_event(
+                evdev.ecodes.KEY_E,
+                1,
+                frozenset({"CTRL"}),
+            )
         )
-    ) is None
+        is None
+    )
 
 
 def test_release_after_capture_is_ignored():
@@ -266,10 +262,13 @@ def test_release_after_capture_is_ignored():
         )
     )
 
-    assert capture.process_event(
-        key_event(
-            evdev.ecodes.KEY_D,
-            0,
-            frozenset({"CTRL"}),
+    assert (
+        capture.process_event(
+            key_event(
+                evdev.ecodes.KEY_D,
+                0,
+                frozenset({"CTRL"}),
+            )
         )
-    ) is None
+        is None
+    )

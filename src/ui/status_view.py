@@ -21,10 +21,7 @@ class StatusView:
         state: DofusFocusState,
     ) -> str:
         """Format the calibrated window names as a human-readable list."""
-        windows = [
-            window.name
-            for window in state.calibrated_windows
-        ]
+        windows = [window.name for window in state.calibrated_windows]
 
         if len(windows) <= 1:
             return "".join(windows)
@@ -42,9 +39,7 @@ class StatusView:
         """Update the tray status items from the current application state."""
         window_label = "Fenêtre" if window_count in (0, 1) else "Fenêtres"
 
-        self.windows_item.setText(
-            f"{window_label} : {window_count}"
-        )
+        self.windows_item.setText(f"{window_label} : {window_count}")
 
         if not state.calibrated:
             self.order_item.setVisible(False)
@@ -54,21 +49,13 @@ class StatusView:
         self.order_item.setVisible(True)
         self.active_window_item.setVisible(True)
 
-        self.order_item.setText(
-            f"Ordre : {self._format_window_order(state)}"
-        )
+        self.order_item.setText(f"Ordre : {self._format_window_order(state)}")
 
-        if 0 <= state.current_index < len(
-            state.calibrated_windows
-        ):
-            active_window = state.calibrated_windows[
-                state.current_index
-            ]
+        if 0 <= state.current_index < len(state.calibrated_windows):
+            active_window = state.calibrated_windows[state.current_index]
 
             self.active_window_item.setText(
                 f"Dernière fenêtre active : {active_window.name}"
             )
         else:
-            self.active_window_item.setText(
-                "Dernière fenêtre active : —"
-            )
+            self.active_window_item.setText("Dernière fenêtre active : —")

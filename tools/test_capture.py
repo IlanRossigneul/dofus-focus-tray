@@ -97,11 +97,7 @@ class CaptureTester:
         self._last_rejection = None
         self._capture_done.clear()
 
-        allowed_mouse_buttons = (
-            set()
-            if self._calibration
-            else None
-        )
+        allowed_mouse_buttons = set() if self._calibration else None
 
         service.start_capture(
             allowed_mouse_buttons=allowed_mouse_buttons,

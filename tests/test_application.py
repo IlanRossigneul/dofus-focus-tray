@@ -86,9 +86,7 @@ def test_calibration_started_with_multiple_windows_completion_notifies_user():
 
     application.notification_manager = notification_manager
 
-    summary = (
-        "Compte 2, Compte 1 et Compte 3"
-    )
+    summary = "Compte 2, Compte 1 et Compte 3"
 
     application._handle_calibration_started(
         window_count=3,
@@ -223,10 +221,7 @@ def test_acquire_instance_lock_fails_when_another_instance_is_running(
 
     application._instance_lock.tryLock.assert_called_once_with(0)
 
-    assert (
-        "Another Dofus Focus Tray instance is already running."
-        in caplog.text
-    )
+    assert "Another Dofus Focus Tray instance is already running." in caplog.text
 
 
 def test_instance_lock_allows_only_one_holder(tmp_path):

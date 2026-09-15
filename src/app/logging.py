@@ -13,11 +13,7 @@ class ComponentFormatter(logging.Formatter):
         else:
             component = record.name.upper()
 
-        return (
-            f"[{record.levelname}] "
-            f"[{component}] "
-            f"{record.getMessage()}"
-        )
+        return f"[{record.levelname}] [{component}] {record.getMessage()}"
 
 
 def setup_logger(level: int = logging.INFO) -> None:
