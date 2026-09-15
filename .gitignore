@@ -29,5 +29,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# User configuration
+src/config/shortcuts.json
+
 # Local systemd units
 systemd/

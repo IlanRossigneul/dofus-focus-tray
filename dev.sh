@@ -37,7 +37,7 @@ echo
 echo "Installing new package version..."
 kpackagetool6 \
     --type KWin/Script \
-    -i "$ROOT/kwin_script"
+    -i "$ROOT/src/kwin_script"
 
 echo
 echo "Enabling in configuration..."
