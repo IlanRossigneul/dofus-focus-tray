@@ -24,27 +24,40 @@ class KWinController:
         self._lock = asyncio.Lock()
 
     async def _connect(self) -> None:
-        if self._bus is not None:
-            return
+        """Connect to the KWin scripting DBus interface."""
 
-        self._bus = await MessageBus(
+        if self._bus is not None:
+            if self._bus.connected and self._scripting is not None:
+                return
+
+            self._bus = None
+            self._scripting = None
+
+        bus = await MessageBus(
             bus_type=BusType.SESSION,
         ).connect()
 
-        introspection = await self._bus.introspect(
-            KWIN_BUS_NAME,
-            KWIN_SCRIPTING_PATH,
-        )
+        try:
+            introspection = await bus.introspect(
+                KWIN_BUS_NAME,
+                KWIN_SCRIPTING_PATH,
+            )
 
-        proxy = self._bus.get_proxy_object(
-            KWIN_BUS_NAME,
-            KWIN_SCRIPTING_PATH,
-            introspection,
-        )
+            proxy = bus.get_proxy_object(
+                KWIN_BUS_NAME,
+                KWIN_SCRIPTING_PATH,
+                introspection,
+            )
 
-        self._scripting = proxy.get_interface(
-            KWIN_SCRIPTING_INTERFACE,
-        )
+            scripting = proxy.get_interface(
+                KWIN_SCRIPTING_INTERFACE,
+            )
+        except Exception:
+            bus.disconnect()
+            raise
+
+        self._bus = bus
+        self._scripting = scripting
 
     async def activate_window(self, uuid: str) -> None:
         """Activate the KWin window identified by its UUID."""

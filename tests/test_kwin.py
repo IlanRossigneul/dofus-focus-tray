@@ -182,13 +182,13 @@ def test_activate_window_removes_temporary_script():
     remove.assert_called_once()
 
 
-def test_activate_window_propagates_connection_failure():
+def test_activate_window_resets_connection_after_introspection_failure():
     controller = KWinController()
 
     bus = MagicMock()
     bus.connect = AsyncMock(return_value=bus)
     bus.introspect = AsyncMock(
-        side_effect=RuntimeError("DBus failure")
+        side_effect=RuntimeError("DBus failure"),
     )
 
     with (
@@ -205,7 +205,142 @@ def test_activate_window_propagates_connection_failure():
 
     bus.connect.assert_awaited_once()
     bus.introspect.assert_awaited_once()
-    bus.disconnect.assert_not_called()
+    bus.disconnect.assert_called_once()
+
+    assert controller._bus is None
+    assert controller._scripting is None
+
+
+def test_connect_resets_connection_after_proxy_failure():
+    controller = KWinController()
+
+    bus = MagicMock()
+    bus.connect = AsyncMock(return_value=bus)
+    bus.introspect = AsyncMock()
+    bus.get_proxy_object.side_effect = RuntimeError(
+        "Proxy creation failure",
+    )
+
+    with (
+        patch(
+            "bridge.kwin.MessageBus",
+            return_value=bus,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="Proxy creation failure",
+        ),
+    ):
+        asyncio.run(controller._connect())
+
+    bus.disconnect.assert_called_once()
+
+    assert controller._bus is None
+    assert controller._scripting is None
+
+
+def test_connect_reconnects_after_bus_disconnect():
+    controller = KWinController()
+
+    first_bus, _, first_scripting = create_kwin_mocks()
+    second_bus, _, second_scripting = create_kwin_mocks()
+
+    first_bus.connect = AsyncMock(return_value=first_bus)
+    first_bus.connected = True
+
+    second_bus.connect = AsyncMock(return_value=second_bus)
+    second_bus.connected = True
+
+    async def run_test():
+        with patch(
+            "bridge.kwin.MessageBus",
+            side_effect=[first_bus, second_bus],
+        ) as message_bus:
+            await controller._connect()
+
+            assert controller._bus is first_bus
+            assert controller._scripting is first_scripting
+
+            first_bus.connected = False
+
+            await controller._connect()
+
+            assert controller._bus is second_bus
+            assert controller._scripting is second_scripting
+
+        assert message_bus.call_count == 2
+
+    asyncio.run(run_test())
+
+
+def test_activate_window_reconnects_after_bus_disconnect():
+    controller = KWinController()
+
+    first_bus, _, first_scripting = create_kwin_mocks()
+    second_bus, _, second_scripting = create_kwin_mocks()
+
+    first_bus.connect = AsyncMock(return_value=first_bus)
+    first_bus.connected = True
+    first_bus.disconnect = MagicMock()
+
+    second_bus.connect = AsyncMock(return_value=second_bus)
+    second_bus.connected = True
+    second_bus.disconnect = MagicMock()
+
+    async def run_test():
+        with (
+            patch(
+                "bridge.kwin.MessageBus",
+                side_effect=[first_bus, second_bus],
+            ) as message_bus,
+            patch(
+                "bridge.kwin.asyncio.sleep",
+                new=AsyncMock(),
+            ),
+        ):
+            await controller.activate_window("first")
+
+            assert controller._bus is first_bus
+            assert controller._scripting is first_scripting
+
+            first_bus.connected = False
+
+            await controller.activate_window("second")
+
+            assert controller._bus is second_bus
+            assert controller._scripting is second_scripting
+
+        assert message_bus.call_count == 2
+        assert first_scripting.call_load_script.await_count == 1
+        assert second_scripting.call_load_script.await_count == 1
+
+    asyncio.run(run_test())
+
+
+def test_connect_reuses_active_connection():
+    controller = KWinController()
+    bus, _, scripting = create_kwin_mocks()
+
+    bus.connect = AsyncMock(return_value=bus)
+    bus.connected = True
+
+    async def run_test():
+        with patch(
+            "bridge.kwin.MessageBus",
+            return_value=bus,
+        ) as message_bus:
+            await controller._connect()
+
+            await controller._connect()
+
+        message_bus.assert_called_once()
+        bus.connect.assert_awaited_once()
+        bus.introspect.assert_awaited_once()
+
+        assert controller._bus is bus
+        assert controller._scripting is scripting
+
+    asyncio.run(run_test())
 
 
 def test_activate_window_removes_script_on_failure():
