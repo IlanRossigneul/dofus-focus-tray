@@ -396,10 +396,9 @@ while true; do
 Type=Application
 Name=Dofus Focus Tray
 Comment=Dofus Focus tray indicator
-Exec=dofus-focus-tray
+Exec=$BIN_DIR/dofus-focus-tray
 Icon=$INSTALL_DIR/icons/dofus.webp
 Terminal=false
-X-GNOME-Autostart-enabled=true
 EOF
 
             chmod 644 "$AUTOSTART_FILE"
